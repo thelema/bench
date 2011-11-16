@@ -380,8 +380,9 @@ let analyze_sample desc ci samples num_resamples =
       {desc=desc; times=samples; mean=mu_hat; stdev=sigma_hat; ov=ov}
     | _ -> assert false
 
-let print_res oc res =
-  Outliers.note_outliers oc res.times;
+(* Print a summary of the results, noting any outliers *)
+let print_res ?(verbose=false) oc res =
+  if verbose then Outliers.note_outliers oc res.times;
   Bootstrap.e_print "mean" oc res.mean;
   Bootstrap.e_print "std.dev." oc res.stdev;
   Outliers.print_effect oc res.ov;
@@ -389,31 +390,64 @@ let print_res oc res =
 
 let print_csv oc res = BatArray.print BatFloat.print ~first:"Times\n" ~sep:"\n" ~last:"\n" oc res.times
 let print_json oc res = BatArray.print BatFloat.print ~first:"[" ~sep:", " ~last:"]\n" oc res.times
-let print_times = function `None -> (fun _ _ -> ()) | `CSV -> print_csv | `JSON -> print_json
+let print_times filename format = 
+  let handler = match format with 
+    | `None -> (fun _ _ -> ()) | `CSV -> print_csv | `JSON -> print_json
+  in
+  BatFile.with_file_out filename handler
+
+(* print the given results in order from shortest time to longest
+   time, with statistically indistinguishable values marked *)
+let summarize = 
+  let cmp_ci r1 r2 = 
+    let l1 = r1.mean.Bootstrap.lower in
+    let u1 = r1.mean.Bootstrap.upper in
+    let l2 = r2.mean.Bootstrap.lower in
+    let u2 = r2.mean.Bootstrap.upper in
+    if u1 < l2 then -1 else if u2 < l1 then 1 else 0
+  in
+  let group_mean group = (List.map (fun r -> r.mean.Bootstrap.point) group |> BatList.reduce (+.)) /. float (List.length group) in
+(*  let glower g = List.map (fun r -> r.mean.Bootstrap.lower) g |> BatList.reduce min in
+  let gupper g = List.map (fun r -> r.mean.Bootstrap.upper) g |> BatList.reduce max in *)
+  let group_name = function [] -> "" | [r] -> r.desc | g -> List.map (fun r -> r.desc) g |> (BatIO.to_string (BatList.print BatString.print)) in
+  let change t1 t2 = (t2 -. t1) /. t2 *. 100. in (* percent improvement *)
+  function [] -> () | [_] -> () (* no functions - do nothing *)
+    | res_list -> (* multiple functions tested - group and compare *)
+      let groups = BatList.group cmp_ci res_list in
+      let names_and_means = List.map (fun g -> g, group_mean g) groups in
+      let rec print_changes = function
+        | [] -> assert false
+        | [g,t] -> printf "%s @%a\n" (group_name g) M.print t
+        | (g,t1)::((_,t2)::_ as tl) ->
+          printf "%s @%a is %.1f%% faster than\n" (group_name g) M.print t1 (*(%a,%a) M.print (glower g) M.print (gupper g)*) (change t1 t2);
+          print_changes tl
+      in
+      print_changes names_and_means
 
 type config = { 
   mutable debug : bool;
+  mutable verbose : bool;
   print_individual : bool;
   mutable samples: int; 
   mutable resamples: int; 
   mutable gc_between_tests: bool; 
   mutable confidence_interval: float;
-(*  mutable output: string * float array -> unit;*)
+  mutable output: (results list -> unit) list;
 }
-(*
-let default_output (label, timing_array) = 
-  let (mu, stdev, ov) = analyze_sample 
-let mu = mean timing_array in
-  let stdev_arr = stdev ~mu timing_array in
-  Printf.printf "%s: %a +- %a\n%!" label M.print mu M.print stdev_arr
- *)
-let config = { debug=true; 
+
+(* The module-global configuration for running benchmarks.  
+
+   TODO: this should be either parent or child of environment so it can
+   be non-global
+*)
+let config = { debug = false; 
+	       verbose = false;
                print_individual=true;
                samples=100; 
                resamples = 10_000; 
                confidence_interval = 0.95;
                gc_between_tests= false;
-(*               output = default_output;*)
+               output = [summarize];
              }
 
 let dtap f x = if config.debug then (f x; x) else x
@@ -421,12 +455,15 @@ let dtap f x = if config.debug then (f x; x) else x
 type environment = {clock_res: float; clock_cost: float}
 
 let is_positive x = x > 0.
+
+(* produce an environment record appropriate for the current system by
+   measuring the cost and resolution of the M.timer() function *)
 let get_environment () =
   let resolution i = 
     let times = Array.init (i+1) (fun _ -> M.timer()) in
     let pos_diffs = 
       Array.init i (fun i -> times.(i+1) -. times.(i)) 
-      |> BatArray.filter is_positive (* FIXME: include zeros? *)
+		   |> BatArray.filter is_positive (* FIXME: include zeros? *)
     in
     pos_diffs
   in
@@ -444,13 +481,22 @@ let get_environment () =
   let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
   if config.debug then print_endline "Estimating clock resolution";
   let (_,i,clocks) = run_for_time 0.5 resolution seed in
-  (* Do we want mean here?!? *)
+  (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
   let clock_res = Outliers.analyze_mean i clocks in
   if config.debug then print_endline "Estimating cost of timer call";
   let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
   let clock_cost = Outliers.analyze_mean (Array.length ts) ts in
   {clock_res = clock_res; clock_cost = clock_cost}
 
+
+(* benchmark a function appropriate for the current environment.
+
+   The number of samples is given in config.sample 
+
+   The number of iterations of the benchmark to run per sample is
+   computed based on the number of iterations that can be run in 0.1s
+   so that each sample takes at most (clock_res * 1000) or 0.1 seconds.
+*)
 let run_benchmark env (f: int -> 'a) =
   let tclock i = M.time_ (repeat M.timer ()) i in
   run_for_time 0.1 tclock 10_000 |> ignore;
@@ -467,106 +513,26 @@ let run_benchmark env (f: int -> 'a) =
   Array.init config.samples (fun _ -> 
     if config.gc_between_tests then Gc.compact (); 
     M.time_ f iters_int) 
-  |> Array.map (fun t -> (t -. env.clock_cost) /. iters)
+		   |> Array.map (fun t -> (t -. env.clock_cost) /. iters)
 
-
+(* Run a benchmark and analyze the results, printing a simple summary to stdout *)
 let run_and_analyze env desc f = 
   printf "Measuring: %s%!" desc;
   let times = run_benchmark env f in
   printf " ... Analyzing with %d resamples\n%!" config.resamples;
   analyze_sample desc config.confidence_interval times config.resamples 
-  |> dtap (print_res BatIO.stdout)
+  |> dtap (print_res ~verbose:config.verbose BatIO.stdout)
 
-(* print the given results in order from shortest time to longest
-   time, with statistically indistinguishable values marked *)
-let summarize = 
-  let cmp_ci r1 r2 = 
-    let l1 = r1.mean.Bootstrap.lower in
-    let u1 = r1.mean.Bootstrap.upper in
-    let l2 = r2.mean.Bootstrap.lower in
-    let u2 = r2.mean.Bootstrap.upper in
-    if u1 < l2 then -1 else if u2 < l1 then 1 else 0
-  in
-  let group_mean group = (List.map (fun r -> r.mean.Bootstrap.point) group |> BatList.reduce (+.)) /. float (List.length group) in
-(*  let glower g = List.map (fun r -> r.mean.Bootstrap.lower) g |> BatList.reduce min in
-  let gupper g = List.map (fun r -> r.mean.Bootstrap.upper) g |> BatList.reduce max in *)
-  let group_name = function [] -> "" | [r] -> r.desc | g -> List.map (fun r -> r.desc) g |> (BatIO.to_string (BatList.print BatString.print)) in
-  let change t1 t2 = (t2 -. t1) /. t2 *. 100. in (* percent improvement *)
-  function [] -> () (* no functions - do nothing *)
-    | [r] -> printf "single function: %a" print_res r
-    | res_list -> (* multiple functions tested - group and compare *)
-      let groups = BatList.group cmp_ci res_list in
-      let names_and_means = List.map (fun g -> g, group_mean g) groups in
-      let rec print_changes = function
-        | [] -> assert false
-        | [g,t] -> printf "%s @%a\n" (group_name g) M.print t
-        | (g,t1)::((_,t2)::_ as tl) ->
-          printf "%s @%a is %.1f%% faster than\n" (group_name g) M.print t1 (*(%a,%a) M.print (glower g) M.print (gupper g)*) (change t1 t2);
-          print_changes tl
-      in
-      print_changes names_and_means
+(* run the output functions on our results *)
+let gen_outputs res = List.iter (fun f -> f res) config.output
 
-
-(* function takes value as argument, rewrite to take int argument
-   of # of reps to run *)
-let bench ?(env=get_environment ()) fs = 
-  let bench_points (desc, f, x) = run_and_analyze env desc (repeat f x) in
-  List.map bench_points fs |> summarize
-
-(* function already takes int argument for # of reps *)
+(* functions to benchmark take int argument for # of reps *)
 let bench_n ?(env=get_environment ()) fs = 
   let bench_points (desc, f) = run_and_analyze env desc f in
-  List.map bench_points fs |> summarize
+  List.map bench_points fs |> gen_outputs
 
-external primitive_int_compare : int -> int -> int = "caml_int_compare"
+(* Our functions to benchmark have a value to apply them to.  We will
+   rewrite them to take int argument of # of reps to run. *)
+let bench ?(env=get_environment ()) fs = 
+  bench_n ~env (List.map (fun (d,f,x) -> (d,repeat f x)) fs)
 
-let self_test () = 
-  let n = int_of_string Sys.argv.(1) in
-  let env = get_environment () in
-  printf "Clock Res: %a\nClock cost: %a\n" 
-    M.print env.clock_res
-    M.print env.clock_cost;
-  
-  let naive_compare x y =
-    (* this code actually mirrors an implementation that has been used
-       as BatInt.compare *)
-    if x > y then 1
-    else if y > x then -1
-    else 0 in
-
-  let mfp_compare (x : int) y =
-    if x > y then 1
-    else if y > x then -1
-    else 0 in
-
-  let input =
-    Array.init n (fun _ -> BatRandom.full_range (), BatRandom.full_range ()) in
-  let output = Array.map (fun (x, y) -> Pervasives.compare x y) input in
-
-
-  let test cmp nb_iter =
-    Array.iteri (fun i (x, y) ->
-      assert (cmp x y = output.(i));
-      for i = 1 to nb_iter do
-        ignore (cmp x y);
-      done)
-      input in
-
-  bench_n ~env ["naive", test naive_compare;
-                "mfp", test mfp_compare;
-                "prim", test primitive_int_compare;
-                "BatInt", test BatInt.compare;
-                "perv", test Pervasives.compare;
-               ];
-
-(* FIBBONACCI BENCHMARKS
-  let rec f = function 0 -> 1 | n -> n * f (n-1) in
-  let clip x a b = if x < a then a else if x > b then b else x in
-  let clip_test n = for i = 1 to n do ignore(clip i 0 255) done; n in
-  ignore(clip_test 1);
-  (*  bench ~env ["fact 100", f, 100; "fact 20", f, 20;
-      "clip_test 100", clip_test, 100; 
-      "clip_test 1000", clip_test, 1000]; *)
-  bench ~env (BatList.init n (fun i -> Printf.sprintf "fact %d" i, f, i));
- *)
-  ()
