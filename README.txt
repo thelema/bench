@@ -8,3 +8,10 @@ See the files INSTALL.txt for building and installation instructions.
 
 
 (* OASIS_STOP *)
+
+To compile example programs, use ocamlbuild like this:
+   
+    ocamlbuild example/test_int.native
+
+This will produce [test_int.native] in the current directory, which
+can be executed directly to run those benchmarks.
