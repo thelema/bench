@@ -317,7 +317,7 @@ module Outliers = struct
     ()
 
   let analyze_mean _i a = 
-    note_outliers BatIO.stdout a;
+    (*note_outliers BatIO.stdout a;*)
     mean a 
 
   type effect = 
@@ -389,13 +389,30 @@ let print_res ?(verbose=false) oc res =
   BatIO.write oc '\n';
   ()
 
-let print_csv oc res = BatArray.print BatFloat.print ~first:"Times\n" ~sep:"\n" ~last:"\n" oc res.times
-let print_json oc res = BatArray.print BatFloat.print ~first:"[" ~sep:", " ~last:"]\n" oc res.times
-let print_times filename format = 
-  let handler = match format with 
-    | `None -> (fun _ _ -> ()) | `CSV -> print_csv | `JSON -> print_json
+(* print a list of results to a csv file *)
+let print_csv resl oc = 
+  let print_csv_string l =  
+    BatList.print ~first:"\"" ~sep:"\",\"" ~last:"\"\n" BatString.print oc l in
+  let print_csv_float l =
+    BatList.print ~first:"" ~sep:"," ~last:"\n" BatFloat.print oc l in
+  print_csv_string (List.map (fun r -> r.desc) resl);
+  for i = 0 to Array.length (List.hd resl).times - 1 do
+    print_csv_float (List.map (fun r -> r.times.(i)) resl);
+  done
+(* FIXME input should be list of results *)
+let print_json oc res = 
+  BatArray.print BatFloat.print ~first:"[" ~sep:", " ~last:"]\n" oc res.times
+
+let print_times filename = 
+  let handler = 
+    if Filename.check_suffix filename ".csv" then print_csv
+    else if Filename.check_suffix filename ".json" then failwith "JSON support not finished"
+    else (fun _ _ -> ())
   in
-  BatFile.with_file_out filename handler
+  (fun resl -> 
+    Printf.eprintf "Saving times to %s\n" filename; 
+    BatFile.with_file_out filename (handler resl)
+  )
 
 (* print the given results in order from shortest time to longest
    time, with statistically indistinguishable values marked *)
@@ -448,7 +465,8 @@ let config = { debug = false;
                resamples = 10_000; 
                confidence_interval = 0.95;
                gc_between_tests= false;
-               output = [summarize];
+	       output = [summarize];
+(*               output = [print_times "times.csv"; summarize];*)
              }
 
 let dtap f x = if config.debug then (f x; x) else x
