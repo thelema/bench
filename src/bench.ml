@@ -386,6 +386,7 @@ let print_res ?(verbose=false) oc res =
   Bootstrap.e_print "mean" oc res.mean;
   Bootstrap.e_print "std.dev." oc res.stdev;
   Outliers.print_effect oc res.ov;
+  BatIO.write oc '\n';
   ()
 
 let print_csv oc res = BatArray.print BatFloat.print ~first:"Times\n" ~sep:"\n" ~last:"\n" oc res.times
@@ -451,6 +452,7 @@ let config = { debug = false;
              }
 
 let dtap f x = if config.debug then (f x; x) else x
+let vtap f x = if config.verbose then (f x; x) else x
 
 type environment = {clock_res: float; clock_cost: float}
 
@@ -476,14 +478,14 @@ let get_environment () =
     in
     Array.map (fun t -> t /. float iters) times
   in 
-  print_endline "Measuring: System Clock";
-  if config.debug then print_endline "Warming up";
+  if config.verbose then print_endline "Measuring: System Clock";
+  if config.verbose then print_endline "Warming up";
   let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
-  if config.debug then print_endline "Estimating clock resolution";
+  if config.verbose then print_endline "Estimating clock resolution";
   let (_,i,clocks) = run_for_time 0.5 resolution seed in
   (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
   let clock_res = Outliers.analyze_mean i clocks in
-  if config.debug then print_endline "Estimating cost of timer call";
+  if config.verbose then print_endline "Estimating cost of timer call";
   let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
   let clock_cost = Outliers.analyze_mean (Array.length ts) ts in
   {clock_res = clock_res; clock_cost = clock_cost}
@@ -502,12 +504,12 @@ let run_benchmark env (f: int -> 'a) =
   run_for_time 0.1 tclock 10_000 |> ignore;
   let min_time = min (env.clock_res *. 1_000.) 0.1 in
   let (test_time, test_iters, _) = run_for_time min_time f 1 in
-  if config.debug then 
+  if config.verbose then 
     printf "Ran %d iterations in %a\n%!" test_iters M.print test_time;
   let iters = ceil (min_time *. float test_iters /. test_time) in
   let iters_int = int_of_float iters in
   let est_time = float config.samples *. iters *. test_time /. float test_iters in
-  if config.debug then 
+  if config.verbose then 
     printf "Collecting %d samples, %d iterations each, estimated time: %a\n%!"
       config.samples iters_int M.print est_time;
   Array.init config.samples (fun _ -> 
@@ -517,11 +519,11 @@ let run_benchmark env (f: int -> 'a) =
 
 (* Run a benchmark and analyze the results, printing a simple summary to stdout *)
 let run_and_analyze env desc f = 
-  printf "Measuring: %s%!" desc;
+  printf "Benchmarking: %s\n%!" desc;
   let times = run_benchmark env f in
-  printf " ... Analyzing with %d resamples\n%!" config.resamples;
+(*  printf " ... Analyzing with %d resamples\n%!" config.resamples;*)
   analyze_sample desc config.confidence_interval times config.resamples 
-  |> dtap (print_res ~verbose:config.verbose BatIO.stdout)
+  |> tap (print_res ~verbose:config.verbose BatIO.stdout)
 
 (* run the output functions on our results *)
 let gen_outputs res = List.iter (fun f -> f res) config.output
