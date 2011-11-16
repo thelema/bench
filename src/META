@@ -1,0 +1,10 @@
+# OASIS_START
+# DO NOT EDIT (digest: 6ef7f41463644d325477b906505c26c7)
+version = "1.0"
+description = "A benchmarking tool for statistically valid benchmarks"
+requires = "batteries"
+archive(byte) = "bench.cma"
+archive(native) = "bench.cmxa"
+exists_if = "bench.cma"
+# OASIS_STOP
+

@@ -1,0 +1,13 @@
+OASISFormat: 0.2
+Name:        bench
+Version:     1.0
+Synopsis:    A benchmarking tool for statistically valid benchmarks
+Authors:     Edgar Friendly
+License:     LGPL-2.1 with OCaml linking exception
+Plugins:     META (0.2), DevFiles (0.2), StdFiles (0.2)
+BuildDepends: batteries
+
+Library bench
+  Path:       src/
+  BuildTools: ocamlbuild
+  Modules:    Bench
