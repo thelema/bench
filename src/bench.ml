@@ -1,5 +1,5 @@
 (* 
- * BatBench - Benchmarking functions
+ * Bench - Benchmarking functions
  * Copyright (C) 2011 Edgar Friendly
  * 
  * This library is free software; you can redistribute it and/or
@@ -23,9 +23,8 @@
    @author Edgar Friendly <thelema314@gmail.com>
 *)
 
+open Batteries
 open Printf
-open BatStd
-open BatPrintf
 
 let (/^) a b = (float a) /. (float b)
 let rec repeat f x n = if n <= 0 then () else (ignore (f x); repeat f x (n-1))
@@ -56,7 +55,7 @@ module Measurement = struct
 end
 module M = Measurement
 
-let mean a = BatArray.reduce (+.) a /. float (Array.length a)
+let mean a = Array.reduce (+.) a /. float (Array.length a)
 let median a = 
   let sorted = Array.copy a in
   Array.sort Pervasives.compare sorted;
@@ -177,7 +176,7 @@ module Bootstrap = struct
       Array.init num_samples (fun _ -> samples.(Random.int num_samples)) in
     let gen_estimations e = 
       let est_outs = Array.init num_resamples (fun _ -> e(gen_sample ())) in
-      Array.sort BatFloat.compare est_outs;
+      Array.sort Float.compare est_outs;
       Resample est_outs
     in
     List.map gen_estimations ests
@@ -195,6 +194,8 @@ module Bootstrap = struct
 
   type estimate = {point: float; lower: float; upper: float; confidence: float}
   let estimate p l u c = {point=p; lower=l; upper=u; confidence=c}
+
+  let est_scale s est = {est with point = s *. est.point; lower = s *. est.lower; upper = s *. est.upper}
 
   let e_print name oc e =
     fprintf oc "%s: %a, %2.0f%% CI: (%a, %a)\n" name
@@ -288,7 +289,7 @@ module Outliers = struct
   let note_outliers oc a = 
     let len = Array.length a in
     let sorted = Array.copy a in
-    Array.sort (BatFloat.compare) sorted;
+    Array.sort (Float.compare) sorted;
     let q1 = quantile 1 4 sorted in
     let q3 = quantile 3 4 sorted in
     let inter_quartile_range = q3 -. q1 in
@@ -317,7 +318,7 @@ module Outliers = struct
     ()
 
   let analyze_mean _i a = 
-    (*note_outliers BatIO.stdout a;*)
+    (*note_outliers IO.stdout a;*)
     mean a 
 
   type effect = 
@@ -360,7 +361,7 @@ module Outliers = struct
       printf "variance introduced by outliers: %.3f%%\n" (ov *. 100.);
       printf "variance is %s by outliers\n" effect;
     )
-    
+
 end
 
 type results = {
@@ -380,28 +381,37 @@ let analyze_sample desc ci samples num_resamples =
       {desc=desc; times=samples; mean=mu_hat; stdev=sigma_hat; ov=ov}
     | _ -> assert false
 
+(* scale the result values by s *)
+let res_scale s res = 
+  { res with 
+    times = Array.map ( ( *. ) s ) res.times;
+    mean = Bootstrap.est_scale s res.mean;
+    stdev = Bootstrap.est_scale s res.stdev;
+  }
+  
+
 (* Print a summary of the results, noting any outliers *)
 let print_res ?(verbose=false) oc res =
   if verbose then Outliers.note_outliers oc res.times;
   Bootstrap.e_print "mean" oc res.mean;
   Bootstrap.e_print "std.dev." oc res.stdev;
   Outliers.print_effect oc res.ov;
-  BatIO.write oc '\n';
+  IO.write oc '\n';
   ()
 
 (* print a list of results to a csv file *)
 let print_csv resl oc = 
   let print_csv_string l =  
-    BatList.print ~first:"\"" ~sep:"\",\"" ~last:"\"\n" BatString.print oc l in
+    List.print ~first:"\"" ~sep:"\",\"" ~last:"\"\n" String.print oc l in
   let print_csv_float l =
-    BatList.print ~first:"" ~sep:"," ~last:"\n" BatFloat.print oc l in
+    List.print ~first:"" ~sep:"," ~last:"\n" Float.print oc l in
   print_csv_string (List.map (fun r -> r.desc) resl);
   for i = 0 to Array.length (List.hd resl).times - 1 do
     print_csv_float (List.map (fun r -> r.times.(i)) resl);
   done
 (* FIXME input should be list of results *)
 let print_json oc res = 
-  BatArray.print BatFloat.print ~first:"[" ~sep:", " ~last:"]\n" oc res.times
+  Array.print Float.print ~first:"[" ~sep:", " ~last:"]\n" oc res.times
 
 let print_times filename = 
   let handler = 
@@ -411,7 +421,7 @@ let print_times filename =
   in
   (fun resl -> 
     Printf.eprintf "Saving times to %s\n" filename; 
-    BatFile.with_file_out filename (handler resl)
+    File.with_file_out filename (handler resl)
   )
 
 (* print the given results in order from shortest time to longest
@@ -424,14 +434,14 @@ let summarize =
     let u2 = r2.mean.Bootstrap.upper in
     if u1 < l2 then -1 else if u2 < l1 then 1 else 0
   in
-  let group_mean group = (List.map (fun r -> r.mean.Bootstrap.point) group |> BatList.reduce (+.)) /. float (List.length group) in
-(*  let glower g = List.map (fun r -> r.mean.Bootstrap.lower) g |> BatList.reduce min in
-  let gupper g = List.map (fun r -> r.mean.Bootstrap.upper) g |> BatList.reduce max in *)
-  let group_name = function [] -> "" | [r] -> r.desc | g -> List.map (fun r -> r.desc) g |> (BatIO.to_string (BatList.print BatString.print)) in
+  let group_mean group = (List.map (fun r -> r.mean.Bootstrap.point) group |> List.reduce (+.)) /. float (List.length group) in
+(*  let glower g = List.map (fun r -> r.mean.Bootstrap.lower) g |> List.reduce min in
+  let gupper g = List.map (fun r -> r.mean.Bootstrap.upper) g |> List.reduce max in *)
+  let group_name = function [] -> "" | [r] -> r.desc | g -> List.map (fun r -> r.desc) g |> (IO.to_string (List.print String.print)) in
   let change t1 t2 = (t2 -. t1) /. t2 *. 100. in (* percent improvement *)
   function [] -> () | [_] -> () (* no functions - do nothing *)
     | res_list -> (* multiple functions tested - group and compare *)
-      let groups = BatList.group cmp_ci res_list in
+      let groups = List.group cmp_ci res_list in
       let names_and_means = List.map (fun g -> g, group_mean g) groups in
       let rec print_changes = function
         | [] -> assert false
@@ -472,41 +482,44 @@ let config = { debug = false;
 let dtap f x = if config.debug then (f x; x) else x
 let vtap f x = if config.verbose then (f x; x) else x
 
-type environment = {clock_res: float; clock_cost: float}
+type environment = {mutable clock_res: float; mutable clock_cost: float}
+let env = {clock_res = min_float; clock_cost = max_float}
 
 let is_positive x = x > 0.
 
 (* produce an environment record appropriate for the current system by
    measuring the cost and resolution of the M.timer() function *)
-let get_environment () =
-  let resolution i = 
-    let times = Array.init (i+1) (fun _ -> M.timer()) in
-    let pos_diffs = 
-      Array.init i (fun i -> times.(i+1) -. times.(i)) 
-		   |> BatArray.filter is_positive (* FIXME: include zeros? *)
+let init_environment () =
+  if env.clock_res = min_float then (* do nothing if already initialized *)
+    let resolution i = 
+      let times = Array.init (i+1) (fun _ -> M.timer()) in
+      let pos_diffs = 
+        Array.init i (fun i -> times.(i+1) -. times.(i)) 
+		   |> Array.filter is_positive (* FIXME: include zeros? *)
+      in
+      pos_diffs
     in
-    pos_diffs
-  in
-  let cost t t0 = 
-    let tclock i = M.time_ (repeat M.timer ()) i in
-    ignore (tclock 100);
-    let (_,iters,elapsed) = run_for_time t0 tclock 10_000 in
-    let times = Array.init (BatFloat.ceil (t /. elapsed) |> int_of_float) 
-      (fun _ -> tclock iters) 
-    in
-    Array.map (fun t -> t /. float iters) times
-  in 
-  if config.verbose then print_endline "Measuring: System Clock";
-  if config.verbose then print_endline "Warming up";
-  let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
-  if config.verbose then print_endline "Estimating clock resolution";
-  let (_,i,clocks) = run_for_time 0.5 resolution seed in
+    let cost t t0 = 
+      let tclock i = M.time_ (repeat M.timer ()) i in
+      ignore (tclock 100);
+      let (_,iters,elapsed) = run_for_time t0 tclock 10_000 in
+      let times = Array.init (Float.ceil (t /. elapsed) |> int_of_float) 
+        (fun _ -> tclock iters) 
+      in
+      Array.map (fun t -> t /. float iters) times
+    in 
+    if config.verbose then print_endline "Measuring: System Clock";
+    if config.verbose then print_endline "Warming up";
+    let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
+    if config.verbose then print_endline "Estimating clock resolution";
+    let (_,i,clocks) = run_for_time 0.5 resolution seed in
   (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
-  let clock_res = Outliers.analyze_mean i clocks in
-  if config.verbose then print_endline "Estimating cost of timer call";
-  let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
-  let clock_cost = Outliers.analyze_mean (Array.length ts) ts in
-  {clock_res = clock_res; clock_cost = clock_cost}
+    let clock_res = Outliers.analyze_mean i clocks in
+    if config.verbose then print_endline "Estimating cost of timer call";
+    let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
+    let clock_cost = Outliers.analyze_mean (Array.length ts) ts in
+    env.clock_res <- clock_res; 
+    env.clock_cost <- clock_cost
 
 
 (* benchmark a function appropriate for the current environment.
@@ -517,7 +530,7 @@ let get_environment () =
    computed based on the number of iterations that can be run in 0.1s
    so that each sample takes at most (clock_res * 1000) or 0.1 seconds.
 *)
-let run_benchmark env (f: int -> 'a) =
+let run_benchmark (f: int -> 'a) =
   let tclock i = M.time_ (repeat M.timer ()) i in
   run_for_time 0.1 tclock 10_000 |> ignore;
   let min_time = min (env.clock_res *. 1_000.) 0.1 in
@@ -536,23 +549,39 @@ let run_benchmark env (f: int -> 'a) =
 		   |> Array.map (fun t -> (t -. env.clock_cost) /. iters)
 
 (* Run a benchmark and analyze the results, printing a simple summary to stdout *)
-let run_and_analyze env desc f = 
+let run_and_analyze desc f = 
+  init_environment ();
   printf "Benchmarking: %s\n%!" desc;
-  let times = run_benchmark env f in
+  let times = run_benchmark f in
 (*  printf " ... Analyzing with %d resamples\n%!" config.resamples;*)
   analyze_sample desc config.confidence_interval times config.resamples 
-  |> tap (print_res ~verbose:config.verbose BatIO.stdout)
+  |> tap (print_res ~verbose:config.verbose IO.stdout)
 
 (* run the output functions on our results *)
 let gen_outputs res = List.iter (fun f -> f res) config.output
 
-(* functions to benchmark take int argument for # of reps *)
-let bench_n ?(env=get_environment ()) fs = 
-  let bench_points (desc, f) = run_and_analyze env desc f in
+(* Functions to benchmark are (int -> unit).  Parameter is number of
+   repetitions *)
+let bench_n fs = 
+  let bench_points (desc, f) = run_and_analyze desc f in
   List.map bench_points fs |> gen_outputs
 
-(* Our functions to benchmark have a value to apply them to.  We will
+(* Functions to benchmark have a value to apply them to.  We will
    rewrite them to take int argument of # of reps to run. *)
-let bench ?(env=get_environment ()) fs = 
-  bench_n ~env (List.map (fun (d,f,x) -> (d,repeat f x)) fs)
+let bench fs = 
+  bench_n (List.map (fun (d,f,x) -> (d,repeat f x)) fs)
 
+(* f argument is ('a -> unit), and we are given a [(string * 'a) list]
+   to test across *)
+let bench_args f dxs =
+  bench_n (List.map (fun (d,x) -> (d, repeat f x)) dxs)
+    
+(* Similar to bench_args, but args are ints, and we rescale times by
+   dividing by the argument to correspond to throughput on different
+   block sizes *)
+let bench_throughput f xs =
+  let bench_one x = 
+    run_and_analyze (string_of_int x) (repeat f x) 
+    |> res_scale (1. /. float x) 
+  in
+  List.map bench_one xs |> gen_outputs

@@ -17,5 +17,4 @@
 "src": include
 <src/*.ml{,i}>: pkg_batteries
 # OASIS_STOP
-"examples": include
 true: debug
