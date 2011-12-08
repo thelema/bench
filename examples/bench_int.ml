@@ -7,7 +7,6 @@ external primitive_int_compare : int -> int -> int = "caml_int_compare"
 let test_compare_bench () = 
   Printf.printf "test compare against stdlib's compare and a naive impl.\n";
   let array_len = 1000 in
-  let env = get_environment () in
   
   let naive_compare x y =
     (* this code actually mirrors an implementation that has been used
@@ -42,7 +41,7 @@ let test_compare_bench () =
      "Pervasives.compare", test Pervasives.compare;
     ]
   in
-  bench_n ~env tests
+  bench_n tests
 
 (*
 let test_compare () =
