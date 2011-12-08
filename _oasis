@@ -1,6 +1,6 @@
 OASISFormat: 0.2
 Name:        bench
-Version:     1.0
+Version:     1.1
 Synopsis:    A benchmarking tool for statistically valid benchmarks
 Authors:     Edgar Friendly
 License:     LGPL-2.1 with OCaml linking exception
