@@ -459,17 +459,17 @@ let statistically_equal alpha r1 r2 =
    time, with statistically indistinguishable values marked *)
 let summarize alpha = function [] -> () | [_] -> () (* no functions - do nothing *)
   | res_list -> (* multiple functions tested - group and compare *)
-    let rec print_changes = function
+    let rec print_changes pre = function
       | [] -> assert false
       | [r] -> printf "%s (%a)\n" r.desc M.print r.mean.Bootstrap.point
       | r1::(r2::_ as tl) when statistically_equal alpha r1 r2 -> 
-        printf "%s (%a) is probably same speed as\n" r1.desc M.print r1.mean.Bootstrap.point;
-        print_changes tl
+        printf "%s (%a) %sis probably same speed as\n" r1.desc M.print r1.mean.Bootstrap.point pre;
+        print_changes "which " tl
       | r1::(r2::_ as tl) ->
-        printf "%s (%a) is %.1f%% faster than\n" r1.desc M.print r1.mean.Bootstrap.point (change r1 r2);
-        print_changes tl
+        printf "%s (%a) %sis %.1f%% faster than\n" r1.desc M.print r1.mean.Bootstrap.point pre (change r1 r2);
+        print_changes "which " tl
     in
-    print_changes (List.sort cmp_point res_list)
+    print_changes "" (List.sort cmp_point res_list)
 
 type config = { 
   mutable debug : bool;
@@ -568,7 +568,7 @@ let run_benchmark (f: int -> 'a) =
     M.time_ f iters_int) 
 		   |> Array.map (fun t -> (t -. env.clock_cost) /. iters)
 
-(* Run a benchmark and analyze the results, printing a simple summary to stdout *)
+(** Run a benchmark and analyze the results, printing a simple summary to stdout *)
 let run_and_analyze desc f = 
   init_environment ();
   printf "Benchmarking: %s\n%!" desc;
@@ -580,28 +580,36 @@ let run_and_analyze desc f =
 (* run the output functions on our results *)
 let gen_outputs res = List.iter (fun f -> f res) config.output
 
-(* Functions to benchmark are (int -> unit).  Parameter is number of
-   repetitions *)
+(** Functions to benchmark are (int -> unit).  Parameter is number of
+    repetitions *)
 let bench_n fs = 
   let bench_points (desc, f) = run_and_analyze desc f in
   List.map bench_points fs |> gen_outputs
 
-(* Functions to benchmark have a value to apply them to.  We will
-   rewrite them to take int argument of # of reps to run. *)
+(** This is the main function to benchmark and compare a number of
+    functions.  Functions to benchmark have a value to apply them to.
+    We will rewrite them to take int argument of # of reps to run. *)
 let bench fs = 
   bench_n (List.map (fun (d,f,x) -> (d,repeat f x)) fs)
 
-(* f argument is ('a -> unit), and we are given a [(string * 'a) list]
+(** f argument is ('a -> unit), and we are given a [(string * 'a) list]
    to test across *)
 let bench_args f dxs =
   bench_n (List.map (fun (d,x) -> (d, repeat f x)) dxs)
-    
-(* Similar to bench_args, but args are ints, and we rescale times by
-   dividing by the argument to correspond to throughput on different
-   block sizes *)
+
+(** [bench_funs fs x] benchmarks a list of labeled functions on the
+    same input, x *)
+let bench_funs fs x =
+  bench_n (List.map (fun (d,f) -> (d, repeat f x)) dxs)
+
+(** This function is similar to bench_args, but args are ints, and we
+    rescale times.  This is useful for testing different block sizes
+    of a function to see which work unit size leads to the highest
+    throughput. *)
 let bench_throughput f xs =
   let bench_one x = 
     run_and_analyze (string_of_int x) (repeat f x) 
-    |> res_scale (1. /. float x) 
+  |> res_scale (1. /. float x) 
   in
   List.map bench_one xs |> gen_outputs
+
