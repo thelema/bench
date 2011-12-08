@@ -356,11 +356,11 @@ module Outliers = struct
     var_out_min
 
   let print_effect oc ov =
-    if ov > 0.00001 then (
+    if ov > 0.00001 then ( 
       let effect = effect_of_var ov |> effect_to_string in
-      printf "variance introduced by outliers: %.3f%%\n" (ov *. 100.);
+      printf "variance introduced by outliers: %.5f%%\n" (ov *. 100.);
       printf "variance is %s by outliers\n" effect;
-    )
+    ) 
 
 end
 
@@ -424,33 +424,34 @@ let print_times filename =
     File.with_file_out filename (handler resl)
   )
 
+let cmp_ci r1 r2 = 
+  let l1 = r1.mean.Bootstrap.lower in
+  let u1 = r1.mean.Bootstrap.upper in
+  let l2 = r2.mean.Bootstrap.lower in
+  let u2 = r2.mean.Bootstrap.upper in
+  if u1 < l2 then -1 else if u2 < l1 then 1 else 0
+let cmp_point r1 r2 = 
+  Pervasives.compare r1.mean.Bootstrap.point r2.mean.Bootstrap.point
+let change r1 r2 = 
+  let t1 = r1.mean.Bootstrap.point in 
+  let t2 = r2.mean.Bootstrap.point in 
+  (t2 -. t1) /. t2 *. 100. (* percent improvement *)
+
 (* print the given results in order from shortest time to longest
    time, with statistically indistinguishable values marked *)
-let summarize = 
-  let cmp_ci r1 r2 = 
-    let l1 = r1.mean.Bootstrap.lower in
-    let u1 = r1.mean.Bootstrap.upper in
-    let l2 = r2.mean.Bootstrap.lower in
-    let u2 = r2.mean.Bootstrap.upper in
-    if u1 < l2 then -1 else if u2 < l1 then 1 else 0
-  in
-  let group_mean group = (List.map (fun r -> r.mean.Bootstrap.point) group |> List.reduce (+.)) /. float (List.length group) in
-(*  let glower g = List.map (fun r -> r.mean.Bootstrap.lower) g |> List.reduce min in
-  let gupper g = List.map (fun r -> r.mean.Bootstrap.upper) g |> List.reduce max in *)
-  let group_name = function [] -> "" | [r] -> r.desc | g -> List.map (fun r -> r.desc) g |> (IO.to_string (List.print String.print)) in
-  let change t1 t2 = (t2 -. t1) /. t2 *. 100. in (* percent improvement *)
-  function [] -> () | [_] -> () (* no functions - do nothing *)
-    | res_list -> (* multiple functions tested - group and compare *)
-      let groups = List.group cmp_ci res_list in
-      let names_and_means = List.map (fun g -> g, group_mean g) groups in
-      let rec print_changes = function
-        | [] -> assert false
-        | [g,t] -> printf "%s @%a\n" (group_name g) M.print t
-        | (g,t1)::((_,t2)::_ as tl) ->
-          printf "%s @%a is %.1f%% faster than\n" (group_name g) M.print t1 (*(%a,%a) M.print (glower g) M.print (gupper g)*) (change t1 t2);
-          print_changes tl
-      in
-      print_changes names_and_means
+let summarize = function [] -> () | [_] -> () (* no functions - do nothing *)
+  | res_list -> (* multiple functions tested - group and compare *)
+    let rec print_changes = function
+      | [] -> assert false
+      | [r] -> printf "%s @%a\n" r.desc M.print r.mean.Bootstrap.point
+      | r1::(r2::_ as tl) when r1.mean.Bootstrap.upper > r2.mean.Bootstrap.lower -> 
+        printf "%s @%a is probably same speed as\n" r1.desc M.print r1.mean.Bootstrap.point;
+        print_changes tl
+      | r1::(r2::_ as tl) ->
+        printf "%s @%a is %.1f%% faster than\n" r1.desc M.print r1.mean.Bootstrap.point (change r1 r2);
+        print_changes tl
+    in
+    print_changes (List.sort cmp_point res_list)
 
 type config = { 
   mutable debug : bool;
@@ -469,9 +470,9 @@ type config = {
    be non-global
 *)
 let config = { debug = false; 
-	       verbose = false;
+	       verbose = true;
                print_individual=true;
-               samples=100; 
+               samples=1000; 
                resamples = 10_000; 
                confidence_interval = 0.95;
                gc_between_tests= false;
@@ -491,15 +492,15 @@ let is_positive x = x > 0.
    measuring the cost and resolution of the M.timer() function *)
 let init_environment () =
   if env.clock_res = min_float then (* do nothing if already initialized *)
-    let resolution i = 
+    let resolution i = (* measure the clock resolution *)
       let times = Array.init (i+1) (fun _ -> M.timer()) in
       let pos_diffs = 
         Array.init i (fun i -> times.(i+1) -. times.(i)) 
-		   |> Array.filter is_positive (* FIXME: include zeros? *)
+		   |> Array.filter is_positive
       in
       pos_diffs
     in
-    let cost t t0 = 
+    let cost t t0 = (* compute clock cost *)
       let tclock i = M.time_ (repeat M.timer ()) i in
       ignore (tclock 100);
       let (_,iters,elapsed) = run_for_time t0 tclock 10_000 in
@@ -511,13 +512,14 @@ let init_environment () =
     if config.verbose then print_endline "Measuring: System Clock";
     if config.verbose then print_endline "Warming up";
     let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
-    if config.verbose then print_endline "Estimating clock resolution";
+    if config.verbose then print_string "Estimating clock resolution";
     let (_,i,clocks) = run_for_time 0.5 resolution seed in
   (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
     let clock_res = Outliers.analyze_mean i clocks in
-    if config.verbose then print_endline "Estimating cost of timer call";
+    if config.verbose then printf " (%a)\nEstimating cost of timer call" M.print clock_res;
     let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
     let clock_cost = Outliers.analyze_mean (Array.length ts) ts in
+    if config.verbose then printf " (%a)\n" M.print clock_cost;
     env.clock_res <- clock_res; 
     env.clock_cost <- clock_cost
 
