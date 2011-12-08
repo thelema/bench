@@ -437,18 +437,36 @@ let change r1 r2 =
   let t2 = r2.mean.Bootstrap.point in 
   (t2 -. t1) /. t2 *. 100. (* percent improvement *)
 
+let statistically_equal alpha r1 r2 =
+  let u1 = r1.mean.Bootstrap.point in
+  let u2 = r2.mean.Bootstrap.point in
+  let s1m = r1.stdev.Bootstrap.point /. float (Array.length r1.times) in
+  let s2m = r2.stdev.Bootstrap.point /. float (Array.length r2.times) in
+  let t = (u2 -. u1) /. sqrt (s1m +. s2m) in
+  let crit =  (* Assumes large samples i.e. n>30 *)
+         if alpha >= 0.10 then 1.281551
+    else if alpha >= 0.05 then 1.644853
+    else if alpha >= 0.025 then 1.959963
+    else if alpha >= 0.01 then 2.326347
+    else if alpha >= 0.005 then 2.575829
+    else if alpha > 0. then 5.0
+    else failwith "Alpha must be greater than 0"
+  in
+  t < crit
+(*  r1.mean.Bootstrap.upper > r2.mean.Bootstrap.lower *)
+
 (* print the given results in order from shortest time to longest
    time, with statistically indistinguishable values marked *)
-let summarize = function [] -> () | [_] -> () (* no functions - do nothing *)
+let summarize alpha = function [] -> () | [_] -> () (* no functions - do nothing *)
   | res_list -> (* multiple functions tested - group and compare *)
     let rec print_changes = function
       | [] -> assert false
-      | [r] -> printf "%s @%a\n" r.desc M.print r.mean.Bootstrap.point
-      | r1::(r2::_ as tl) when r1.mean.Bootstrap.upper > r2.mean.Bootstrap.lower -> 
-        printf "%s @%a is probably same speed as\n" r1.desc M.print r1.mean.Bootstrap.point;
+      | [r] -> printf "%s (%a)\n" r.desc M.print r.mean.Bootstrap.point
+      | r1::(r2::_ as tl) when statistically_equal alpha r1 r2 -> 
+        printf "%s (%a) is probably same speed as\n" r1.desc M.print r1.mean.Bootstrap.point;
         print_changes tl
       | r1::(r2::_ as tl) ->
-        printf "%s @%a is %.1f%% faster than\n" r1.desc M.print r1.mean.Bootstrap.point (change r1 r2);
+        printf "%s (%a) is %.1f%% faster than\n" r1.desc M.print r1.mean.Bootstrap.point (change r1 r2);
         print_changes tl
     in
     print_changes (List.sort cmp_point res_list)
@@ -476,7 +494,7 @@ let config = { debug = false;
                resamples = 10_000; 
                confidence_interval = 0.95;
                gc_between_tests= false;
-	       output = [summarize];
+	       output = [summarize 0.05];
 (*               output = [print_times "times.csv"; summarize];*)
              }
 
