@@ -23,11 +23,15 @@
    @author Edgar Friendly <thelema314@gmail.com>
 *)
 
-open Batteries
 open Printf
 
+let (|>) x f = f x
 let (/^) a b = (float a) /. (float b)
 let rec repeat f x n = if n <= 0 then () else (ignore (f x); repeat f x (n-1))
+let tap f x = f x; x
+
+let debug = true
+let dtap f x = if debug then (f x; x) else x
 
 module Measurement = struct
 (* TODO: make customizable timer? *)
@@ -55,7 +59,7 @@ module Measurement = struct
 end
 module M = Measurement
 
-let mean a = Array.reduce (+.) a /. float (Array.length a)
+let mean a = (Array.fold_left (+.) 0. a) /. float (Array.length a)
 let median a = 
   let sorted = Array.copy a in
   Array.sort Pervasives.compare sorted;
@@ -176,7 +180,7 @@ module Bootstrap = struct
       Array.init num_samples (fun _ -> samples.(Random.int num_samples)) in
     let gen_estimations e = 
       let est_outs = Array.init num_resamples (fun _ -> e(gen_sample ())) in
-      Array.sort Float.compare est_outs;
+      Array.sort compare est_outs;
       Resample est_outs
     in
     List.map gen_estimations ests
@@ -289,7 +293,7 @@ module Outliers = struct
   let note_outliers oc a = 
     let len = Array.length a in
     let sorted = Array.copy a in
-    Array.sort (Float.compare) sorted;
+    Array.sort compare sorted;
     let q1 = quantile 1 4 sorted in
     let q3 = quantile 3 4 sorted in
     let inter_quartile_range = q3 -. q1 in
@@ -396,9 +400,10 @@ let print_res ?(verbose=false) oc res =
   Bootstrap.e_print "mean" oc res.mean;
   Bootstrap.e_print "std.dev." oc res.stdev;
   Outliers.print_effect oc res.ov;
-  IO.write oc '\n';
+  fprintf oc "\n";
   ()
 
+(*
 (* print a list of results to a csv file *)
 let print_csv resl oc = 
   let print_csv_string l =  
@@ -423,6 +428,7 @@ let print_times filename =
     Printf.eprintf "Saving times to %s\n" filename; 
     File.with_file_out filename (handler resl)
   )
+*)
 
 let cmp_ci r1 r2 = 
   let l1 = r1.mean.Bootstrap.lower in
@@ -452,6 +458,7 @@ let statistically_equal alpha r1 r2 =
     else if alpha > 0. then 5.0
     else failwith "Alpha must be greater than 0"
   in
+  if debug then Printf.printf "t-score: %g\n" t; 
   t < crit
 (*  r1.mean.Bootstrap.upper > r2.mean.Bootstrap.lower *)
 
@@ -472,7 +479,6 @@ let summarize alpha = function [] -> () | [_] -> () (* no functions - do nothing
     print_changes "" (List.sort cmp_point res_list)
 
 type config = { 
-  mutable debug : bool;
   mutable verbose : bool;
   print_individual : bool;
   mutable samples: int; 
@@ -487,8 +493,7 @@ type config = {
    TODO: this should be either parent or child of environment so it can
    be non-global
 *)
-let config = { debug = false; 
-	       verbose = true;
+let config = { verbose = true;
                print_individual=true;
                samples=1000; 
                resamples = 10_000; 
@@ -498,7 +503,6 @@ let config = { debug = false;
 (*               output = [print_times "times.csv"; summarize];*)
              }
 
-let dtap f x = if config.debug then (f x; x) else x
 let vtap f x = if config.verbose then (f x; x) else x
 
 type environment = {mutable clock_res: float; mutable clock_cost: float}
@@ -514,7 +518,7 @@ let init_environment () =
       let times = Array.init (i+1) (fun _ -> M.timer()) in
       let pos_diffs = 
         Array.init i (fun i -> times.(i+1) -. times.(i)) 
-		   |> Array.filter is_positive
+	|> Array.to_list |> List.filter is_positive |> Array.of_list
       in
       pos_diffs
     in
@@ -522,7 +526,7 @@ let init_environment () =
       let tclock i = M.time_ (repeat M.timer ()) i in
       ignore (tclock 100);
       let (_,iters,elapsed) = run_for_time t0 tclock 10_000 in
-      let times = Array.init (Float.ceil (t /. elapsed) |> int_of_float) 
+      let times = Array.init (ceil (t /. elapsed) |> int_of_float) 
         (fun _ -> tclock iters) 
       in
       Array.map (fun t -> t /. float iters) times
@@ -575,7 +579,7 @@ let run_and_analyze desc f =
   let times = run_benchmark f in
 (*  printf " ... Analyzing with %d resamples\n%!" config.resamples;*)
   analyze_sample desc config.confidence_interval times config.resamples 
-  |> tap (print_res ~verbose:config.verbose IO.stdout)
+  |> tap (print_res ~verbose:config.verbose stdout)
 
 (* run the output functions on our results *)
 let gen_outputs res = List.iter (fun f -> f res) config.output
@@ -600,7 +604,7 @@ let bench_args f dxs =
 (** [bench_funs fs x] benchmarks a list of labeled functions on the
     same input, x *)
 let bench_funs fs x =
-  bench_n (List.map (fun (d,f) -> (d, repeat f x)) dxs)
+  bench_n (List.map (fun (d,f) -> (d, repeat f x)) fs)
 
 (** This function is similar to bench_args, but args are ints, and we
     rescale times.  This is useful for testing different block sizes

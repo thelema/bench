@@ -1,0 +1,3 @@
+To compile examples, use ocamlbuild from parent directory:
+
+bench$ ocamlbuild examples/bench_int.native
