@@ -209,7 +209,7 @@ module Bootstrap = struct
 
   let bootstrap_bca confidence sample estimators resamples =
     if confidence <= 0. || confidence >= 1. then failwith "bootstrap_bca: confidence must be between 0 and 1";
-    let estimate est (Resample res) =
+    let make_estimate est (Resample res) =
       let pt = est sample in
       if Array.length sample = 1 then 
         estimate pt pt pt confidence
@@ -232,7 +232,7 @@ module Bootstrap = struct
         let hi = min (cumn a2) (n-1) in
         estimate pt res.(lo) res.(hi) confidence
     in
-    List.map2 estimate estimators resamples
+    List.map2 make_estimate estimators resamples
 end
 
 module Outliers = struct 
@@ -475,10 +475,9 @@ let summarize alpha = function [] -> () | [_] -> () (* no functions - do nothing
 
 type config = { 
   mutable verbose : bool;
-  print_individual : bool;
   mutable samples: int; 
-  mutable resamples: int; 
   mutable gc_between_tests: bool; 
+  mutable resamples: int; 
   mutable confidence_interval: float;
   mutable output: (results list -> unit) list;
 }
@@ -489,7 +488,6 @@ type config = {
    be non-global
 *)
 let config = { verbose = true;
-               print_individual=true;
                samples=1_000; 
                resamples = 10_000; 
                confidence_interval = 0.95;
@@ -600,6 +598,9 @@ let bench_args f dxs =
     same input, x *)
 let bench_funs fs x =
   bench_n (List.map (fun (d,f) -> (d, repeat f x)) fs)
+
+let bench_unit fs =
+  bench_n (List.map (fun (d,f) -> (d, repeat f ())) fs)
 
 (** This function is similar to bench_args, but args are ints, and we
     rescale times.  This is useful for testing different block sizes

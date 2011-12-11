@@ -4,9 +4,18 @@ Version:     1.2
 Synopsis:    A benchmarking tool for statistically valid benchmarks
 Authors:     Edgar Friendly
 License:     LGPL-2.1 with OCaml linking exception
-Plugins:     META (0.2), DevFiles (0.2), StdFiles (0.2)
+Plugins:     META (0.2), StdFiles (0.2)
+BuildTools:  ocamlbuild
 
 Library bench
   Path:       src/
-  BuildTools: ocamlbuild
   Modules:    Bench
+
+Document API
+  Title:           API reference for Bench
+  Type:            OCamlbuild (0.2)
+  InstallDir:      $docdir/api
+  BuildTools:      ocamldoc, ocamlbuild
+  XOCamlbuildPath: src
+  XOCamlbuildLibraries: bench
+
