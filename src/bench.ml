@@ -30,7 +30,7 @@ let (/^) a b = (float a) /. (float b)
 let rec repeat f x n = if n <= 0 then () else (ignore (f x); repeat f x (n-1))
 let tap f x = f x; x
 
-let debug = true
+let debug = false
 let dtap f x = if debug then (f x; x) else x
 
 module Measurement = struct
@@ -443,40 +443,35 @@ let change r1 r2 =
   let t2 = r2.mean.Bootstrap.point in 
   (t2 -. t1) /. t2 *. 100. (* percent improvement *)
 
-let statistically_equal alpha r1 r2 =
+let test_unequal r1 r2 = (* t-test for difference in population means *)
   let u1 = r1.mean.Bootstrap.point in
   let u2 = r2.mean.Bootstrap.point in
-  let s1m = r1.stdev.Bootstrap.point /. float (Array.length r1.times) in
-  let s2m = r2.stdev.Bootstrap.point /. float (Array.length r2.times) in
+  let s1 = r1.stdev.Bootstrap.point in
+  let s2 = r2.stdev.Bootstrap.point in
+  let s1m = s1 *. s1 /. float (Array.length r1.times) in
+  let s2m = s2 *. s2 /. float (Array.length r2.times) in
   let t = (u2 -. u1) /. sqrt (s1m +. s2m) in
-  let crit =  (* Assumes large samples i.e. n>30 *)
-         if alpha >= 0.10 then 1.281551
-    else if alpha >= 0.05 then 1.644853
-    else if alpha >= 0.025 then 1.959963
-    else if alpha >= 0.01 then 2.326347
-    else if alpha >= 0.005 then 2.575829
-    else if alpha > 0. then 5.0
-    else failwith "Alpha must be greater than 0"
-  in
-  if debug then Printf.printf "t-score: %g\n" t; 
-  t < crit
-(*  r1.mean.Bootstrap.upper > r2.mean.Bootstrap.lower *)
+  if debug then Printf.printf "u1:%g u2:%g s1m:%g s2m:%g t-score: %g\n" u1 u2 s1m s2m t; 
+  (* Assumes large samples i.e. n>30 *)
+  1. -. Normal_dist.standard_cdf t (* return p-value *)
 
 (* print the given results in order from shortest time to longest
    time, with statistically indistinguishable values marked *)
 let summarize alpha = function [] -> () | [_] -> () (* no functions - do nothing *)
   | res_list -> (* multiple functions tested - group and compare *)
-    let rec print_changes pre = function
+    let rec print_changes ~pre = function
       | [] -> assert false
       | [r] -> printf "%s (%a)\n" r.desc M.print r.mean.Bootstrap.point
-      | r1::(r2::_ as tl) when statistically_equal alpha r1 r2 -> 
-        printf "%s (%a) %sis probably same speed as\n" r1.desc M.print r1.mean.Bootstrap.point pre;
-        print_changes "which " tl
       | r1::(r2::_ as tl) ->
-        printf "%s (%a) %sis %.1f%% faster than\n" r1.desc M.print r1.mean.Bootstrap.point pre (change r1 r2);
-        print_changes "which " tl
+        let p_value = test_unequal r1 r2 in
+        printf "%s (%a) %s" r1.desc M.print r1.mean.Bootstrap.point pre;
+        if p_value > alpha then 
+          printf "is probably (alpha=%.2f%%) same speed as\n" (p_value *. 100.)
+        else 
+          printf "is %.1f%% faster than\n" (change r1 r2);
+        print_changes ~pre:"which " tl
     in
-    print_changes "" (List.sort cmp_point res_list)
+    print_changes ~pre:"" (List.sort cmp_point res_list)
 
 type config = { 
   mutable verbose : bool;
@@ -495,7 +490,7 @@ type config = {
 *)
 let config = { verbose = true;
                print_individual=true;
-               samples=1000; 
+               samples=1_000; 
                resamples = 10_000; 
                confidence_interval = 0.95;
                gc_between_tests= false;
