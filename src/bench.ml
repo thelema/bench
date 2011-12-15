@@ -489,7 +489,7 @@ type config = {
 *)
 let config = { verbose = true;
                samples=1_000; 
-               resamples = 10_000; 
+               resamples = 1_000; 
                confidence_interval = 0.95;
                gc_between_tests= false;
 	       output = [summarize 0.05];
@@ -575,18 +575,21 @@ let run_and_analyze desc f =
   |> tap (print_res ~verbose:config.verbose stdout)
 
 (* run the output functions on our results *)
-let gen_outputs res = List.iter (fun f -> f res) config.output
+let run_outputs res = List.iter (fun f -> f res) config.output
 
 (** Functions to benchmark are (int -> unit).  Parameter is number of
     repetitions *)
 let bench_n fs = 
   let bench_points (desc, f) = run_and_analyze desc f in
-  List.map bench_points fs |> gen_outputs
+  List.map bench_points fs 
+
+let bench fs =
+  bench_n (List.map (fun (d,f) -> (d, repeat f ())) fs) |> run_outputs
 
 (** This is the main function to benchmark and compare a number of
     functions.  Functions to benchmark have a value to apply them to.
     We will rewrite them to take int argument of # of reps to run. *)
-let bench fs = 
+let bench_arg fs = 
   bench_n (List.map (fun (d,f,x) -> (d,repeat f x)) fs)
 
 (** f argument is ('a -> unit), and we are given a [(string * 'a) list]
@@ -599,9 +602,6 @@ let bench_args f dxs =
 let bench_funs fs x =
   bench_n (List.map (fun (d,f) -> (d, repeat f x)) fs)
 
-let bench_unit fs =
-  bench_n (List.map (fun (d,f) -> (d, repeat f ())) fs)
-
 (** This function is similar to bench_args, but args are ints, and we
     rescale times.  This is useful for testing different block sizes
     of a function to see which work unit size leads to the highest
@@ -611,5 +611,5 @@ let bench_throughput f xs =
     run_and_analyze (string_of_int x) (repeat f x) 
   |> res_scale (1. /. float x) 
   in
-  List.map bench_one xs |> gen_outputs
+  List.map bench_one xs
 
