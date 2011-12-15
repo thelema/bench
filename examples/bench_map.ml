@@ -1,14 +1,12 @@
 (* cd .. && ocamlbuild benchsuite/bench_map.native && _build/benchsuite/bench_map.native *)
 
-let env = Bench.get_environment ()
-
 (* The purpose of this test is to compare different implementation of
    the Map associative data structure. *)
 
 let total_length = 500_000
 
-let (-|) = BatStd.(-|)
-let (|>) = BatStd.(|>)
+let (-|) = BatPervasives.(-|)
+let (|>) = BatPervasives.(|>)
 
 module MapBench (M : sig val input_length : int end) = struct
   let input_length = M.input_length
@@ -25,8 +23,7 @@ module MapBench (M : sig val input_length : int end) = struct
     BatList.init input_length (fun _ -> random_elt ())
 
   let make_samples input tests () =
-    List.map (fun (name, test) -> name, test, input) tests
-    |> Bench.bench ~env 
+    Bench.bench_funs tests input
 
   (* we don't use BatInt to ensure that the same comparison function
      is used (PMap use Pervasives.compare by default), in order to
@@ -296,7 +293,8 @@ let () =
 
   print_newline ();
   print_newline ();
-  
+  Bench.config.Bench.samples <- 10;
+
   Printf.printf "Test with big maps (length = %d)\n%!" big_length;
   let () =
     let module M = MapBench(struct let input_length = big_length end) in
