@@ -1,5 +1,5 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 4852e1c830a4a5b1957ffb1569828dc4) *)
+(* DO NOT EDIT (digest: de557c1fc9e7a563d6c6eb38a1f35407) *)
 This is the INSTALL file for the bench distribution.
 
 This package uses OASIS to generate its build system. See section OASIS for
@@ -11,7 +11,6 @@ Dependencies
 In order to compile this package, you will need:
 * ocaml for all, doc API
 * findlib
-* batteries (>= 2.0beta2)
 
 Installing
 ==========

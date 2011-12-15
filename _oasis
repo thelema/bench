@@ -6,7 +6,6 @@ Authors:     Edgar Friendly
 License:     LGPL-2.1 with OCaml linking exception
 Plugins:     META (0.2), StdFiles (0.2)
 BuildTools:  ocamlbuild
-BuildDepends: batteries (>= 2.0beta2)
 
 Library bench
   Path:       src/
