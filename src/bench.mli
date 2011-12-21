@@ -1,7 +1,7 @@
-(* 
+(*
  * Bench - Benchmarking functions
  * Copyright (C) 2011 Edgar Friendly
- * 
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
@@ -20,7 +20,7 @@
 
 (** Benchmarking toolbox, based on the Criterion library by Bryan
     O'Sullivan
-    
+
     @author Edgar Friendly <thelema314\@gmail.com>
  *)
 
@@ -50,28 +50,28 @@ end
 (** The results of running a test *)
 type results = {
   (** the string description of that test *)
-  desc : string; 
+  desc : string;
 
   (** The measured times for each sample *)
-  times : float array; 
+  times : float array;
 
   (** The mean time with bootstrapped CI *)
-  mean : Bootstrap.estimate; 
+  mean : Bootstrap.estimate;
 
   (** The stdev of time with bootstrapped CI *)
-  stdev : Bootstrap.estimate; 
+  stdev : Bootstrap.estimate;
 
   (** How much the outliers affected the variance, as a percentage.
       0% means no effect, 100% means the outliers were responsible for all
       the variance. *)
-  ov : float; 
+  ov : float;
 }
 
 (** {6 Detailed benchmarking functions} *)
 
 (** [bench fs] benchmarks the named functions with argument given in
-    [fs] 
-    {[ 
+    [fs]
+    {[
     let res = Bench.bench_arg ["div", ( /. ) 3., 4.;
                               "mul", ( *. ) 3., 0.25] in
     Bench.run_outputs res
@@ -79,8 +79,8 @@ type results = {
  *)
 val bench_arg : (string * ('a -> 'b) * 'a) list -> results list
 
-(** Benchmark one function with many arguments. 
-    {[ 
+(** Benchmark one function with many arguments.
+    {[
     let () = Bench.run_outputs (Bench.bench_args List.rev [
         "10", Array.to_list (Array.create 10 0);
         "100", Array.to_list (Array.create 100 0);
@@ -90,10 +90,10 @@ val bench_arg : (string * ('a -> 'b) * 'a) list -> results list
 *)
 val bench_args : ('a -> 'b) -> (string * 'a) list -> results list
 
-(** Benchmark many functions with a fixed parameter. 
+(** Benchmark many functions with a fixed parameter.
     let l = Array.to_list (Array.init 1000 (fun _ -> Random.float 20.)) in
     let res = Bench.bench_funs [
-                  "listsort", List.sort compare; 
+                  "listsort", List.sort compare;
                   "arrsort", (fun l -> let a = Array.of_list l in Array.sort compare a; Array.to_list a);
                   ] l in
     Bench.run_outputs res
@@ -117,21 +117,21 @@ val bench_throughput : (int -> 'a) -> int list -> results list
     linearly.  The first parameter is the alpha (type I error rate)
     for the "same time" test, the second is the list of results from
     the tests. *)
-val summarize : float -> results list -> unit
+val summarize : ?alpha:float -> results list -> unit
 
 (** {6 Configuration API} *)
 
 (** The following global configuration parameters are available for
     bench *)
 type config = {
-  mutable verbose : bool; 
+  mutable verbose : bool;
   (** bench will print much more progress information if this is true.
       Default=true. *)
-  
-  mutable samples : int; 
+
+  mutable samples : int;
   (** The minimum number of samples to measure Default=1000 *)
 
-  mutable gc_between_tests : bool; 
+  mutable gc_between_tests : bool;
   (** Whether or not to call [Gc.compact] between tests
       Default=false*)
 
@@ -139,10 +139,10 @@ type config = {
   (** The number of resamples to use when computing confidence
       intervals Default=1000 *)
 
-  mutable confidence_interval : float; 
+  mutable confidence_interval : float;
   (** How big a confidence interval to estimate for mean and stdev Default: 95% (0.95)*)
 
-  mutable output : (results list -> unit) list; 
+  mutable output : (results list -> unit) list;
   (** Output functions to use.  Default: [summarize 0.05] *)
 
 }
@@ -155,4 +155,3 @@ val config : config
    these measurements are needed, and calling it a second time does
    nothing. *)
 val init_environment : unit -> unit
-
