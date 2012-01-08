@@ -19,3 +19,7 @@ Document API
   XOCamlbuildPath: src
   XOCamlbuildLibraries: bench
 
+Executable benchplot
+  Path:    src/
+  MainIs:  benchplot.ml
+  BuildDepends: archimedes
