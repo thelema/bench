@@ -79,5 +79,21 @@ let read_data fn =
   with End_of_file -> Array.of_list (List.rev !values)
 
 let () =
-  let ys = read_data "times.flat" in
-  plot ys ~filename:"times.png"
+  let num_args = Array.length Sys.argv in
+  let infile =
+    match num_args with
+    | 1 -> "times.flat"
+    | 2 | 3 -> Sys.argv.(1)
+    | _ ->
+	let usage_string =  "Usage:  " ^ Sys.argv.(0) ^ " [input filename [output filename]]\n" in
+	(prerr_string usage_string; exit 1)
+  in
+  let outfile =
+    match num_args with
+    | 1 -> "times.png"
+    | 2 -> infile ^ ".png"
+    | 3 -> Sys.argv.(2)
+    | _ -> assert false
+  in
+  let ys = read_data infile in
+  plot ys ~filename:outfile
