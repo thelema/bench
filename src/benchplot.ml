@@ -1,8 +1,8 @@
 
 (* TODO
- * local colors
  * customize box
- * font size & posn of title & axis labels
+ *
+ * Styles:  `Auto,`Bars,`Disks,`Impulses,`Lollipops
  *)
 
 module A = Archimedes
@@ -12,6 +12,9 @@ let default_width  = ref 650
 let default_height = ref 450
 
 let color = ref A.Color.blue
+
+let min_disk_width = ref 10
+let max_disk_width = ref 20
 
 let may f = function None -> () | Some v -> f v
 
@@ -23,7 +26,9 @@ let plot
     ?(xlabel="Samples")
     ?(ylabel="Time")
     ?ymax
+    ?(style=`Auto)
     ys =
+  assert (!min_disk_width < !max_disk_width);
   let filename = if Filename.check_suffix filename ".png" then filename else filename ^ ".png" in
   let num_vals = Array.length ys in
   let (width,bar_width)  =
@@ -39,24 +44,29 @@ let plot
   let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
   VP.title vp title;
   VP.xrange vp 0. (float_of_int num_vals);
+  let ymax = match ymax with Some max -> max | None -> Array.fold_left max 0. ys in
+  VP.yrange vp 0. ymax;
   VP.xlabel vp xlabel;
   VP.ylabel vp ylabel;
-  may (VP.yrange vp 0.0) ymax;
-  (* VP.ylabel vp ylabel; *)
   A.Axes.box vp;
   let xs = Array.init num_vals (fun n -> 0.5 +. float_of_int n) in
-  if bar_width > 20 then             (* too wide for impulses *)
-    A.Array.xy vp xs ys ~style:(`Bars 0.5) ~fill:true ~fillcolor:!color
-  else begin
+  if style=`Bars || (style = `Auto  &&  bar_width > !max_disk_width)
+    (* too wide for disks *)
+  then A.Array.xy vp xs ys ~style:(`Bars 0.5) ~fill:true ~fillcolor:!color
+  else if List.mem style [`Auto;`Disks;`Impulses;`Lollipops]
+  then begin
     let old_line_width = VP.get_line_width vp in
     let old_color = VP.get_color vp in
     VP.set_line_width vp (float_of_int impulse_thickness);
     VP.set_color vp !color;
-    A.Array.xy vp xs ys ~style:(`Impulses);
+    if style <> `Disks then A.Array.xy vp xs ys ~style:(`Impulses);
     VP.set_line_width vp old_line_width;
     VP.set_color vp old_color;
-    if bar_width > 5 then A.Array.xy vp xs ys;  (* wide enough for dot markers *)
-  end;
+    if List.mem style [`Disks;`Lollipops] || (style = `Auto  &&  bar_width > !min_disk_width)
+      (* wide enough for disks *)
+    then A.Array.xy vp xs ys ~style:(`Markers "O")
+  end
+  else invalid_arg "style must be one of `Auto,`Bars,`Disks,`Impulses,`Lollipops";
   A.close vp
 
 let read_data fn =
@@ -70,4 +80,4 @@ let read_data fn =
 
 let () =
   let ys = read_data "times.flat" in
-  plot ~filename:"times.png" ys
+  plot ys ~filename:"times.png"
