@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 940b84d0fd8ea86707c9fee8f7d95ba9)
+# DO NOT EDIT (digest: a195b129b43080bab1c24665b251c128)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -18,5 +18,6 @@
 <src/*.ml{,i}>: pkg_archimedes
 # Library bench
 "src": include
+<src/*.ml{,i}>: pkg_unix
 # OASIS_STOP
 true: debug

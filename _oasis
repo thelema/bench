@@ -10,6 +10,7 @@ BuildTools:  ocamlbuild
 Library bench
   Path:       src/
   Modules:    Bench
+  BuildDepends: unix
 
 Document API
   Title:           API reference for Bench
