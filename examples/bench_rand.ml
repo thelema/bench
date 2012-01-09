@@ -270,12 +270,12 @@ module Mersenne = struct
    modify it under the terms of the GNU Lesser General Public
    License as published by the Free Software Foundation; either
    version 2.1 of the License, or (at your option) any later version.
-	 
+
    This library is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
    Lesser General Public License for more details.
-	 
+
    You should have received a copy of the GNU Lesser General Public
    License along with this library; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
@@ -304,7 +304,7 @@ let mask_b = 0x9d2c5680l
 and mask_c = 0xefc60000l
 and upper_mask = 0x80000000l (* most significant w-r bits *)
 and lower_mask = 0x7fffffffl (* least significant r bits *)
-and mag01 = [| 0l; 0x9908b0dfl |] 
+and mag01 = [| 0l; 0x9908b0dfl |]
 and mask_high = 0xffff0000l
 
 let new_state () =
@@ -313,7 +313,7 @@ let new_state () =
     mti = n + 1;
   }
 
-let init32 seed = 
+let init32 seed =
   let t = new_state () in
   let m1 = 1812433253l
   and mfill = 0xffffffffl in
@@ -331,8 +331,8 @@ let init32 seed =
 let init_array32 seed =
   let t = init32 19650218l in
   let k = ref (max n (Array.length seed))
-  and i = ref 1 
-  and j = ref 0 
+  and i = ref 1
+  and j = ref 0
   and mval1 = 1664525l
   and mval2 = 1566083941l
   in
@@ -389,10 +389,10 @@ let make = function
   | `Array x -> init_array32 (Array.map Int32.of_int x)
   | `CurrentTime -> init32 (Int32.of_float (Sys.time ()))
 
-      
+
 let fill_mt t =
   let y = ref 0l
-  and kk = ref 0 in 
+  and kk = ref 0 in
   let fiddle i ip ig =
     y := Int32.logor
       (Int32.logand (Array.unsafe_get t.mt i) upper_mask)
@@ -426,15 +426,15 @@ let uint32 t =
   let r = Int32.logxor y' (Int32.shift_right_logical y' 18) in
     t.mti <- t.mti + 1;
     r
-     
+
 let int32 t =
   let r = uint32 t in
     Int32.shift_right_logical r 1
- 
+
 let uint64 t =
   let high = Int64.of_int32 (uint32 t)
   and low = Int64.of_int32 (uint32 t) in
-    Int64.logor low (Int64.shift_left high 32) 
+    Int64.logor low (Int64.shift_left high 32)
 
 let int64 t =
   let r = uint64 t in
@@ -445,7 +445,7 @@ let unativeint t =
     if Sys.word_size = 32 then v
   else Nativeint.logor v
     (Nativeint.shift_left (Nativeint.of_int32 (uint32 t)) 32)
-  
+
 let nativeint t =
   let r = unativeint t in
     Nativeint.shift_right_logical r 1
@@ -461,7 +461,7 @@ let int t =
 let uint32_to_float ui32 =
   if ui32 >= Int32.zero then
     Int32.to_float ui32
-  else (* ACK! *) 
+  else (* ACK! *)
     float_of_string (Printf.sprintf "%lu" ui32)
 
 let real0 t =
@@ -490,35 +490,35 @@ let res53 t =
 end
 
 
-let test_rand_bench () = 
-  let rand311 n = 
+let test_rand_bench () =
+  let rand311 n =
     R311.init 27182818;
     for i = 1 to n do
       ignore (R311.float R311.default 1.0);
-    done;    
+    done;
   in
 
-  let rand312 n = 
+  let rand312 n =
     R312.init 27182818;
     for i = 1 to n do
       ignore (R312.float R312.default 1.0);
     done;
   in
 
-  let mt n = 
+  let mt n =
     let m = Mersenne.make (`Seed 27182818) in
     for i = 1 to n do
       ignore(Mersenne.real1 m);
     done;
   in
 
-  let tests = 
+  let tests =
     ["OCaml 3.12 Random", rand312;
      "OCaml 3.11 Random", rand311;
      "Mersenne Twister", mt;
     ]
   in
-  bench_n tests
+  bench_n tests |> Bench.run_outputs
 
 let () =
   test_rand_bench ()

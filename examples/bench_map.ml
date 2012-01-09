@@ -13,7 +13,7 @@ module MapBench (M : sig val input_length : int end) = struct
 
   let nb_iter =
     max 10 (total_length / input_length)
-  
+
   let () = Printf.printf "%d iterations\n" nb_iter
 
   let random_key () = Random.int input_length
@@ -23,7 +23,7 @@ module MapBench (M : sig val input_length : int end) = struct
     BatList.init input_length (fun _ -> random_elt ())
 
   let make_samples input tests () =
-    Bench.bench_funs tests input
+    Bench.bench_funs tests input |> Bench.run_outputs
 
   (* we don't use BatInt to ensure that the same comparison function
      is used (PMap use Pervasives.compare by default), in order to
@@ -41,7 +41,7 @@ module MapBench (M : sig val input_length : int end) = struct
     List.fold_left
       (fun t (k, v) -> StdMap.add k v t)
       StdMap.empty input
-    
+
   let create_poly_map input =
     List.fold_left
       (fun t (k, v) -> PMap.add k v t)
@@ -65,7 +65,7 @@ module MapBench (M : sig val input_length : int end) = struct
   (* A benchmark for fast import *)
   let import_std_map input =
     StdMap.of_enum (BatList.enum input)
-    
+
   let import_poly_map input =
     PMap.of_enum (BatList.enum input)
 
@@ -182,7 +182,7 @@ module MapBench (M : sig val input_length : int end) = struct
   let merge_unsafe_union (m1, m2) =
     let merge_fun k a b = if a <> None then a else b in
     PMap.merge_unsafe merge_fun m1 m2
-    
+
   let union_input =
     let m1 = PMap.of_enum (BatList.enum p1) in
     let m2 = PMap.of_enum (BatList.enum p2) in
@@ -302,5 +302,3 @@ let () =
 
 
   ()
-
-  

@@ -4,10 +4,10 @@ open Bench
 
 external primitive_int_compare : int -> int -> int = "caml_int_compare"
 
-let test_compare_bench () = 
+let test_compare_bench () =
   Printf.printf "test compare against stdlib's compare and a naive impl.\n";
   let array_len = 1000 in
-  
+
   let naive_compare x y =
     (* this code actually mirrors an implementation that has been used
        as BatInt.compare *)
@@ -20,7 +20,7 @@ let test_compare_bench () =
     else if y > x then -1
     else 0 in
 
-  let input = Array.init array_len 
+  let input = Array.init array_len
     (fun _ -> BatRandom.full_range (), BatRandom.full_range ()) in
   let output = Array.map (fun (x, y) -> Pervasives.compare x y) input in
 
@@ -33,7 +33,7 @@ let test_compare_bench () =
       done)
       input in
 
-  let tests = 
+  let tests =
     ["naive compare", test naive_compare;
      "mfp's compare", test mfp_compare;
      "caml_int_compare", test primitive_int_compare;
@@ -41,12 +41,12 @@ let test_compare_bench () =
      "Pervasives.compare", test Pervasives.compare;
     ]
   in
-  bench_n tests
+  Bench.run_outputs (bench_n tests)
 
 (*
 let test_compare () =
   Printf.printf "test compare against stdlib's compare and a naive impl.";
-  
+
   let bound = max_int
   and length = 1000
   and nb_iter = 2000 in
