@@ -113,6 +113,13 @@ val bench_n : (string * (int -> 'a)) list -> results list
     time taken divided by the size of the block.  *)
 val bench_throughput : (int -> 'a) -> int list -> results list
 
+val bench_range : ('a -> 'b) -> input_gen:(int -> 'a) -> (int * int) -> results list
+
+val bench_2d : (string * ('a -> 'b)) list -> input_gen:(int -> 'a) -> (int * int) -> (int list * (string * results list) list)
+
+val print_2d : out_channel -> (int list * (string * results list) list) -> unit
+
+
 (** The function that summarizes the results by comparing the results
     linearly.  The first parameter is the alpha (type I error rate)
     for the "same time" test, the second is the list of results from
