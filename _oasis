@@ -24,3 +24,16 @@ Executable benchplot
   Path:    src/
   MainIs:  benchplot.ml
   BuildDepends: archimedes
+  CompiledObject: best
+
+Executable listmap
+  Path:    examples/
+  MainIs:  listmap.ml
+  Install: false
+  CompiledObject: best
+
+Executable erf
+  Path:    examples/
+  MainIs:  erf.ml
+  Install: false
+  CompiledObject: best

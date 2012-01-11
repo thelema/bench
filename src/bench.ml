@@ -28,8 +28,9 @@ open Printf
 let (|>) x f = f x
 let (/^) a b = (float a) /. (float b)
 let rec repeat f x n = if n <= 0 then () else (ignore (f x); repeat f x (n-1))
+let curry f (x,y) = f x y
 let tap f x = f x; x
-
+let rec (--.) (lo,step) hi = if lo < hi then lo :: ((lo +. step),step) --. hi else []
 let debug = false
 let dtap f x = if debug then (f x; x) else x
 
@@ -598,28 +599,27 @@ let run_outputs res = List.iter (fun f -> f res) config.output
 
 (** Functions to benchmark are (int -> unit).  Parameter is number of
     repetitions *)
-let bench_n fs =
-  let bench_points (desc, f) = run_and_analyze desc f in
-  List.map bench_points fs
+let bench_n fs = List.map (curry run_and_analyze) fs
 
+(* Benchmark unit functions with names *)
 let bench fs =
-  bench_n (List.map (fun (d,f) -> (d, repeat f ())) fs) |> run_outputs
+  List.map (fun (d,f) -> run_and_analyze d (repeat f ())) fs |> run_outputs
 
 (** This is the main function to benchmark and compare a number of
     functions.  Functions to benchmark have a value to apply them to.
     We will rewrite them to take int argument of # of reps to run. *)
 let bench_arg fs =
-  bench_n (List.map (fun (d,f,x) -> (d,repeat f x)) fs)
+  List.map (fun (d,f,x) -> run_and_analyze d (repeat f x)) fs
 
 (** f argument is ('a -> unit), and we are given a [(string * 'a) list]
    to test across *)
 let bench_args f dxs =
-  bench_n (List.map (fun (d,x) -> (d, repeat f x)) dxs)
+  List.map (fun (d,x) -> run_and_analyze d (repeat f x)) dxs
 
 (** [bench_funs fs x] benchmarks a list of labeled functions on the
     same input, x *)
 let bench_funs fs x =
-  bench_n (List.map (fun (d,f) -> (d, repeat f x)) fs)
+  List.map (fun (d,f) -> run_and_analyze d (repeat f x)) fs
 
 (** This function is similar to bench_args, but args are ints, and we
     rescale times.  This is useful for testing different block sizes
@@ -631,3 +631,48 @@ let bench_throughput f xs =
   |> res_scale (1. /. float x)
   in
   List.map bench_one xs
+
+(* generate points spaced nicely - exponential for really big ranges
+   (lo/hi>10), unit spacing for medium ranges, otherwise 10
+   intervals *)
+let rec gen_points ?(n=10) lo hi =
+(*  printf "gp %g %g\n%!" lo hi;*)
+  assert (hi >= lo);
+  if hi = lo then [lo]
+  else if lo > 0. && hi /. lo > 100. then gen_points ~n (log lo) (log hi) |> List.map exp
+  else if hi -. lo < float (n*3) && hi -. lo > float (n/3) && floor (hi -. lo) = (hi -. lo) then List.(lo,1.) --. hi
+  else
+    let step = (hi -. lo) /. float n in
+    (lo, step) --. hi
+
+(* hide the float internals, give a nice int interface *)
+let gen_points lo hi =
+  gen_points (float lo) (float hi) |> List.map truncate
+
+let bench_range f ~input_gen (lo,hi) =
+  let points = gen_points lo hi in
+  let run_one i = run_and_analyze (string_of_int i) (repeat f (input_gen i)) in
+  List.map run_one points
+
+let bench_2d fs ~input_gen (lo,hi) =
+  let points = gen_points lo hi in
+  let run_one (df,f) (i,input) =
+    let d = df ^ "_" ^ string_of_int i in
+    run_and_analyze d (repeat f input) |> res_scale (1. /. float i)
+  in
+  let inputs = List.map (fun i -> i, input_gen i) points in
+  points, List.map (fun (df,_ as f) -> df, List.map (run_one f) inputs) fs
+(* returns list of (desc, result list); each sublist is all results
+   for one function *)
+
+let print_ranges oc (desc,resl) =
+  fprintf oc "%s\n" desc;
+  list_print ~first:"est " ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.point) oc resl;
+  list_print ~first:"lo " ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.lower) oc resl;
+  list_print ~first:"hi " ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.upper) oc resl
+
+let print_2d fn (points,rs) =
+  let oc = open_out fn in
+  list_print ~first:"x-values\n" ~last:"\n" ~sep:" " string_of_int oc points;
+  List.iter (print_ranges oc) rs;
+  close_out oc
