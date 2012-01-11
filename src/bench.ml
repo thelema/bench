@@ -30,7 +30,7 @@ let (/^) a b = (float a) /. (float b)
 let rec repeat f x n = if n <= 0 then () else (ignore (f x); repeat f x (n-1))
 let curry f (x,y) = f x y
 let tap f x = f x; x
-let rec (--.) (lo,step) hi = if lo < hi then lo :: ((lo+. step),step) --. hi else []
+let rec (--.) (lo,step) hi = if lo < hi then lo :: ((lo +. step),step) --. hi else []
 let debug = false
 let dtap f x = if debug then (f x; x) else x
 
@@ -601,6 +601,7 @@ let run_outputs res = List.iter (fun f -> f res) config.output
     repetitions *)
 let bench_n fs = List.map (curry run_and_analyze) fs
 
+(* Benchmark unit functions with names *)
 let bench fs =
   List.map (fun (d,f) -> run_and_analyze d (repeat f ())) fs |> run_outputs
 
@@ -638,8 +639,11 @@ let max_points = float 25
    (lo/hi>10), unit spacing for medium ranges, otherwise 10
    intervals *)
 let rec gen_points lo hi =
-  if hi /. lo > 100. then gen_points (log lo) (log hi) |> List.map exp
-  else if hi -. lo < max_points && hi -. lo > min_points then List.(lo,1.) --. hi
+(*  printf "gp %g %g\n%!" lo hi;*)
+  assert (hi >= lo);
+  if hi = lo then [lo]
+  else if lo > 0. && hi /. lo > 100. then gen_points (log lo) (log hi) |> List.map exp
+  else if hi -. lo < max_points && hi -. lo > min_points && floor (hi -. lo) = (hi -. lo) then List.(lo,1.) --. hi
   else
     let step = (hi -. lo) /. avg_points in
     (lo, step) --. hi
@@ -669,6 +673,8 @@ let print_ranges oc (desc,resl) =
   list_print ~first:(desc^"_lo ") ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.lower) oc resl;
   list_print ~first:(desc^"_hi ") ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.upper) oc resl
 
-let print_2d oc (points,rs) =
+let print_2d fn (points,rs) =
+  let oc = open_out fn in
   list_print ~first:"points " ~last:"\n" ~sep:" " string_of_int oc points;
-  List.iter (print_ranges oc) rs
+  List.iter (print_ranges oc) rs;
+  close_out oc

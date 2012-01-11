@@ -117,7 +117,7 @@ val bench_range : ('a -> 'b) -> input_gen:(int -> 'a) -> (int * int) -> results 
 
 val bench_2d : (string * ('a -> 'b)) list -> input_gen:(int -> 'a) -> (int * int) -> (int list * (string * results list) list)
 
-val print_2d : out_channel -> (int list * (string * results list) list) -> unit
+val print_2d : string -> (int list * (string * results list) list) -> unit
 
 
 (** The function that summarizes the results by comparing the results
