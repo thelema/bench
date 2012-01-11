@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: a195b129b43080bab1c24665b251c128)
+# DO NOT EDIT (digest: 6fe66c76ba5aed88c3276391ade37edc)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -14,8 +14,10 @@
 "_darcs": -traverse
 "_darcs": not_hygienic
 # Executable benchplot
-"src/benchplot.byte": pkg_archimedes
+<src/benchplot.{native,byte}>: pkg_archimedes
 <src/*.ml{,i}>: pkg_archimedes
+# Executable listmap
+# Executable erf
 # Library bench
 "src": include
 <src/*.ml{,i}>: pkg_unix
