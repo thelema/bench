@@ -632,20 +632,17 @@ let bench_throughput f xs =
   in
   List.map bench_one xs
 
-let min_points = float 4
-let avg_points = float 10
-let max_points = float 25
 (* generate points spaced nicely - exponential for really big ranges
    (lo/hi>10), unit spacing for medium ranges, otherwise 10
    intervals *)
-let rec gen_points lo hi =
+let rec gen_points ?(n=10) lo hi =
 (*  printf "gp %g %g\n%!" lo hi;*)
   assert (hi >= lo);
   if hi = lo then [lo]
-  else if lo > 0. && hi /. lo > 100. then gen_points (log lo) (log hi) |> List.map exp
-  else if hi -. lo < max_points && hi -. lo > min_points && floor (hi -. lo) = (hi -. lo) then List.(lo,1.) --. hi
+  else if lo > 0. && hi /. lo > 100. then gen_points ~n (log lo) (log hi) |> List.map exp
+  else if hi -. lo < float (n*3) && hi -. lo > float (n/3) && floor (hi -. lo) = (hi -. lo) then List.(lo,1.) --. hi
   else
-    let step = (hi -. lo) /. avg_points in
+    let step = (hi -. lo) /. float n in
     (lo, step) --. hi
 
 (* hide the float internals, give a nice int interface *)
@@ -669,12 +666,13 @@ let bench_2d fs ~input_gen (lo,hi) =
    for one function *)
 
 let print_ranges oc (desc,resl) =
-  list_print ~first:(desc^" ") ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.point) oc resl;
-  list_print ~first:(desc^"_lo ") ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.lower) oc resl;
-  list_print ~first:(desc^"_hi ") ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.upper) oc resl
+  fprintf oc "%s\n" desc;
+  list_print ~first:"est " ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.point) oc resl;
+  list_print ~first:"lo " ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.lower) oc resl;
+  list_print ~first:"hi " ~last:"\n" ~sep:" " (fun r -> string_of_float r.mean.Bootstrap.upper) oc resl
 
 let print_2d fn (points,rs) =
   let oc = open_out fn in
-  list_print ~first:"points " ~last:"\n" ~sep:" " string_of_int oc points;
+  list_print ~first:"x-values\n" ~last:"\n" ~sep:" " string_of_int oc points;
   List.iter (print_ranges oc) rs;
   close_out oc
