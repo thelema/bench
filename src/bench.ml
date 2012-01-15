@@ -30,7 +30,7 @@ let (/^) a b = (float a) /. (float b)
 let rec repeat f x n = if n <= 0 then () else (ignore (f x); repeat f x (n-1))
 let curry f (x,y) = f x y
 let tap f x = f x; x
-let rec (--.) (lo,step) hi = if lo < hi then lo :: ((lo +. step),step) --. hi else []
+let rec (--.) (lo,step) hi = if lo <= hi then lo :: ((lo +. step),step) --. hi else []
 let debug = false
 let dtap f x = if debug then (f x; x) else x
 
@@ -645,17 +645,22 @@ let rec gen_points ?(n=10) lo hi =
     let step = (hi -. lo) /. float n in
     (lo, step) --. hi
 
-(* hide the float internals, give a nice int interface *)
-let gen_points lo hi =
-  gen_points (float lo) (float hi) |> List.map truncate
+let rec uniq = function
+  | x :: y :: t when x = y -> uniq (x :: t)
+  | x :: t -> x :: uniq t
+  | [] -> []
 
-let bench_range f ~input_gen (lo,hi) =
-  let points = gen_points lo hi in
+(* hide the float internals, give a nice int interface *)
+let gen_points ?n lo hi =
+  gen_points ?n (float lo) (float hi) |> List.map (fun x -> truncate (x+. 0.5)) |> uniq
+
+let bench_range f ~input_gen ?n (lo,hi) =
+  let points = gen_points ?n lo hi in
   let run_one i = run_and_analyze (string_of_int i) (repeat f (input_gen i)) in
   List.map run_one points
 
-let bench_2d fs ~input_gen (lo,hi) =
-  let points = gen_points lo hi in
+let bench_2d fs ~input_gen ?n (lo,hi) =
+  let points = gen_points ?n lo hi in
   let run_one (df,f) (i,input) =
     let d = df ^ "_" ^ string_of_int i in
     run_and_analyze d (repeat f input) |> res_scale (1. /. float i)

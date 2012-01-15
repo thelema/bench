@@ -113,9 +113,9 @@ val bench_n : (string * (int -> 'a)) list -> results list
     time taken divided by the size of the block.  *)
 val bench_throughput : (int -> 'a) -> int list -> results list
 
-val bench_range : ('a -> 'b) -> input_gen:(int -> 'a) -> (int * int) -> results list
+val bench_range : ('a -> 'b) -> input_gen:(int -> 'a) -> ?n:int -> (int * int) -> results list
 
-val bench_2d : (string * ('a -> 'b)) list -> input_gen:(int -> 'a) -> (int * int) -> (int list * (string * results list) list)
+val bench_2d : (string * ('a -> 'b)) list -> input_gen:(int -> 'a) -> ?n:int -> (int * int) -> (int list * (string * results list) list)
 
 val print_2d : string -> (int list * (string * results list) list) -> unit
 
