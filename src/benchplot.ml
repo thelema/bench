@@ -7,6 +7,8 @@
 
 module A = Archimedes
 module VP = A.Viewport
+module BE = A.Backend
+module Clr = A.Color
 
 let default_width  = ref 650
 let default_height = ref 450
@@ -164,6 +166,7 @@ let read_2d_data fn =
   assert (l1 = "x-values");
   let xs = input_line ic |> split_line |> List.map int_of_string |> Array.of_list in
   let values = ref [] in
+let 
   try while true do
       let fname = input_line ic in
       let ys = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
