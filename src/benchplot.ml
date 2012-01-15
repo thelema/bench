@@ -95,6 +95,8 @@ let plot
   else invalid_arg "style must be one of `Auto,`Bars,`Disks,`Impulses,`Lollipops";
   A.close vp
 
+let linecolors = A.Color.([| green, sea_green; orange, peach_puff; black, light_gray; blue,light_blue; gold, light_goldenrod; chocolate, tan |])
+
 let multiplot
     ?(filename = "multiplot_out.png")
     ?(width = !default_width)
@@ -121,12 +123,16 @@ let multiplot
   VP.xlabel vp xlabel;
   VP.ylabel vp ylabel;
   A.Axes.box vp;
-  let plot_ydata ydata =
-    A.Array.xy vp xs ydata.ys (* ~base:lows ~fill:true ~fillcolor:!color *) ~style:`Lines;
-    A.Array.xy vp xs ydata.lows (* ~base:highs ~fill:true ~fillcolor:!color *) ~style:`Lines;
-    A.Array.xy vp xs ydata.highs (* ~base:highs ~fill:true ~fillcolor:!color *) ~style:`Lines
+  let plot_ydata (maincolor, edgecolor) ydata =
+    A.set_color vp maincolor;
+    A.Array.xy vp xs ydata.ys ~style:`Lines;
+    A.set_color vp edgecolor;
+    A.Array.xy vp xs ydata.lows ~style:`Lines;
+    A.Array.xy vp xs ydata.highs (*~base:ydata.lows ~fill:true ~fillcolor:edgecolor*) ~style:`Lines
   in
-  Array.iter plot_ydata ydatas;
+  for i = 0 to Array.length ydatas - 1 do
+    plot_ydata linecolors.(i) ydatas.(i);
+  done;
   A.close vp
 
 let read_data fn =
