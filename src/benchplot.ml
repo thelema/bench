@@ -35,6 +35,11 @@ let for_all f xs =
   while (!n < num_xs && f xs.(!n)) do n := !n + 1 done;
   !n = num_xs
 
+let rev_arr a =
+  let l = Array.length a in
+  Array.init l (fun i -> a.(l - i - 1))
+
+
 type ydata = { fname: string; ys: float array; lows: float array; highs: float array }
 
 let ylengths_equal n x = for_all ((=) n) (Array.map Array.length [|x.lows;x.ys;x.highs|])
@@ -95,7 +100,7 @@ let plot
   else invalid_arg "style must be one of `Auto,`Bars,`Disks,`Impulses,`Lollipops";
   A.close vp
 
-let linecolors = A.Color.([| green, sea_green; orange, peach_puff; black, light_gray; blue,light_blue; gold, light_goldenrod; chocolate, tan |])
+let linecolors = A.Color.([| hot_pink; orange; blue; yellow; chocolate; green; black |])
 
 let multiplot
     ?(filename = "multiplot_out.png")
@@ -103,7 +108,7 @@ let multiplot
     ?(height = !default_height)
     ?(title = "Multiplot")
     ?(xlabel = "Argument value")
-    ?(ylabel = "Time")
+    ?(ylabel = "Time (s)")
     ?ymin
     ?ymax
     (xs, ydatas) =
@@ -116,6 +121,7 @@ let multiplot
   let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
   VP.title vp title;
   let xs = Array.map float_of_int xs in (* turn xs to floats *)
+  let xs = if xs.(num_xs - 1) /. xs.(0) < 100. then xs else Array.map log xs in
   VP.xrange vp xs.(0) xs.(num_xs - 1);
   let ymin = ensure ymin (fold_fold min) (Array.map (fun yd -> yd.lows) ydatas) in
   let ymax = ensure ymax (fold_fold max) (Array.map (fun yd -> yd.highs) ydatas) in
@@ -123,12 +129,17 @@ let multiplot
   VP.xlabel vp xlabel;
   VP.ylabel vp ylabel;
   A.Axes.box vp;
-  let plot_ydata (maincolor, edgecolor) ydata =
-    A.set_color vp maincolor;
-    A.Array.xy vp xs ydata.ys ~style:`Lines;
+  let plot_ydata color ydata =
+    let edgecolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.3) color) in
     A.set_color vp edgecolor;
-    A.Array.xy vp xs ydata.lows ~style:`Lines;
-    A.Array.xy vp xs ydata.highs (*~base:ydata.lows ~fill:true ~fillcolor:edgecolor*) ~style:`Lines
+    let xs2 = Array.append xs (rev_arr xs) in
+    let ys2 = Array.append ydata.highs (rev_arr ydata.lows) in
+    A.Array.xy vp xs2 ys2 ~fill:true ~fillcolor:edgecolor ~style:`Lines;
+    A.set_color vp color;
+    A.Array.xy vp xs ydata.ys ~style:`Lines;
+    let text_pos_x = xs.(Array.length xs - 1) in
+    let text_pos_y = ydata.ys.(Array.length ydata.ys - 1) in
+    A.Viewport.text vp text_pos_x text_pos_y ydata.fname;
   in
   for i = 0 to Array.length ydatas - 1 do
     plot_ydata linecolors.(i) ydatas.(i);
@@ -163,11 +174,12 @@ let read_2d_data fn =
   with End_of_file -> xs, Array.of_list (List.rev !values)
 
 let () =
-  ( try
+  let fn = if Array.length Sys.argv < 2 then "lm.out" else Sys.argv.(1) in
+(*  ( try
     let ys = read_data "times.flat" in
     plot ys ~filename:"times.png"
     with _ -> () );
-  ( try
-      let data = read_2d_data "lm.out" in
-      multiplot ~filename:"lm.png" data
-    with _ -> () );
+  ( try *)
+      let data = read_2d_data fn in
+      multiplot ~filename:(fn ^ ".png") data
+(*    with _ -> () );*)
