@@ -102,14 +102,14 @@ let plot
   else invalid_arg "style must be one of `Auto,`Bars,`Disks,`Impulses,`Lollipops";
   A.close vp
 
-let linecolors = A.Color.([| hot_pink; orange; blue; yellow; chocolate; green; black |])
+let linecolors = A.Color.([| red; blue; green; orange; chocolate; black; magenta; thistle; gold; silver |])
 
 let multiplot
     ?(filename = "multiplot_out.png")
     ?(width = !default_width)
     ?(height = !default_height)
     ?(title = "Multiplot")
-    ?(xlabel = "Argument value")
+    ?(xlabel = "Argument size")
     ?(ylabel = "Time (s)")
     ?ymin
     ?ymax
@@ -123,17 +123,18 @@ let multiplot
   let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
   VP.title vp title;
   let xs = Array.map float_of_int xs in (* turn xs to floats *)
-  let xs = if xs.(num_xs - 1) /. xs.(0) < 100. then xs else Array.map log xs in
+  let log_x = xs.(num_xs - 1) /. xs.(0) > 100. in
+  let xs = if log_x then Array.map log xs else xs in
   VP.xrange vp xs.(0) xs.(num_xs - 1);
   let ymin = ensure ymin (fold_fold min) (Array.map (fun yd -> yd.lows) ydatas) in
   let ymax = ensure ymax (fold_fold max) (Array.map (fun yd -> yd.highs) ydatas) in
   VP.yrange vp ymin ymax;
-  VP.xlabel vp xlabel;
+  VP.xlabel vp (if log_x then "log " ^ xlabel else xlabel);
   VP.ylabel vp ylabel;
   A.Axes.box vp;
   let plot_ydata color ydata =
     let edgecolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.3) color) in
-    A.set_color vp edgecolor;
+    A.set_color vp (A.Color.rgba 0. 0. 0. 0.);
     let xs2 = Array.append xs (rev_arr xs) in
     let ys2 = Array.append ydata.highs (rev_arr ydata.lows) in
     A.Array.xy vp xs2 ys2 ~fill:true ~fillcolor:edgecolor ~style:`Lines;
