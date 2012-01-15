@@ -23,7 +23,7 @@ Document API
 Executable benchplot
   Path:    src/
   MainIs:  benchplot.ml
-  BuildDepends: archimedes
+  BuildDepends: archimedes, str
   CompiledObject: best
 
 Executable listmap

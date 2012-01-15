@@ -18,6 +18,32 @@ let max_disk_width = ref 20
 
 let may f = function None -> () | Some v -> f v
 
+let (|-) f g = fun x -> g (f x)
+let (|>) x f = f x
+
+let identity x = x
+
+let range0 n = Array.init n identity
+
+let fold f xs = Array.fold_left f xs.(0) (Array.sub xs 1 ((Array.length xs) - 1))
+
+let ensure x f y = match x with Some x -> x | None -> f y
+
+let for_all f xs =
+  let num_xs = Array.length xs in
+  let n = ref 0 in
+  while (!n < num_xs && f xs.(!n)) do n := !n + 1 done;
+  !n = num_xs
+
+type ydata = { fname: string; ys: float array; lows: float array; highs: float array }
+
+let ylengths_equal n x = for_all ((=) n) (Array.map Array.length [|x.lows;x.ys;x.highs|])
+
+let assert_y_order ydata =
+  Array.iteri (fun n y -> assert (y > ydata.lows.(n) && y < ydata.highs.(n))) ydata.ys
+
+let fold_fold f yss = fold f (Array.map (fold f) yss)
+
 let plot
     ?(filename="plot_out.png")
     ?width:target_width
@@ -69,6 +95,40 @@ let plot
   else invalid_arg "style must be one of `Auto,`Bars,`Disks,`Impulses,`Lollipops";
   A.close vp
 
+let multiplot
+    ?(filename = "multiplot_out.png")
+    ?(width = !default_width)
+    ?(height = !default_height)
+    ?(title = "Multiplot")
+    ?(xlabel = "Argument value")
+    ?(ylabel = "Time")
+    ?ymin
+    ?ymax
+    (xs, ydatas) =
+(* assert (!min_disk_width < !max_disk_width); *)
+  let filename = if Filename.check_suffix filename ".png" then filename else filename ^ ".png" in
+  let num_xs = Array.length xs in
+  assert (for_all (ylengths_equal num_xs) ydatas);
+  Array.iter (fun n -> assert (xs.(n) < xs.(n+1))) (range0 (num_xs - 1));
+  Array.iter assert_y_order ydatas;
+  let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
+  VP.title vp title;
+  let xs = Array.map float_of_int xs in (* turn xs to floats *)
+  VP.xrange vp xs.(0) xs.(num_xs - 1);
+  let ymin = ensure ymin (fold_fold min) (Array.map (fun yd -> yd.lows) ydatas) in
+  let ymax = ensure ymax (fold_fold max) (Array.map (fun yd -> yd.highs) ydatas) in
+  VP.yrange vp ymin ymax;
+  VP.xlabel vp xlabel;
+  VP.ylabel vp ylabel;
+  A.Axes.box vp;
+  let plot_ydata ydata =
+    A.Array.xy vp xs ydata.ys (* ~base:lows ~fill:true ~fillcolor:!color *) ~style:`Lines;
+    A.Array.xy vp xs ydata.lows (* ~base:highs ~fill:true ~fillcolor:!color *) ~style:`Lines;
+    A.Array.xy vp xs ydata.highs (* ~base:highs ~fill:true ~fillcolor:!color *) ~style:`Lines
+  in
+  Array.iter plot_ydata ydatas;
+  A.close vp
+
 let read_data fn =
   let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
   let values = ref [] in
@@ -78,6 +138,30 @@ let read_data fn =
     done; assert false
   with End_of_file -> Array.of_list (List.rev !values)
 
+let spc = Str.regexp " "
+let split_line s = Str.split spc s
+
+let read_2d_data fn =
+  let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
+  let l1 = input_line ic in
+  assert (l1 = "x-values");
+  let xs = input_line ic |> split_line |> List.map int_of_string |> Array.of_list in
+  let values = ref [] in
+  try while true do
+      let fname = input_line ic in
+      let ys = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
+      let lows = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
+      let highs = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
+      values := {fname; ys; lows; highs} :: !values
+    done; assert false
+  with End_of_file -> xs, Array.of_list (List.rev !values)
+
 let () =
-  let ys = read_data "times.flat" in
-  plot ys ~filename:"times.png"
+  ( try
+    let ys = read_data "times.flat" in
+    plot ys ~filename:"times.png"
+    with _ -> () );
+  ( try
+      let data = read_2d_data "lm.out" in
+      multiplot ~filename:"lm.png" data
+    with _ -> () );
