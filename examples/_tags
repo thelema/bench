@@ -1,2 +1,1 @@
-true: pkg_bench, pkg_batteries
-true: use_unix
+true: pkg_bench, pkg_batteries, pkg_threads
