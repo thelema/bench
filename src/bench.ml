@@ -678,7 +678,7 @@ let print_ranges oc (desc,resl) =
 
 let print_2d fn (points,rs) =
   let oc = open_out fn in
-  output_string "multiplot\n";
+  output_string oc "multiplot\n";
   list_print ~first:"x-values " ~last:"\n" ~sep:" " string_of_int oc points;
   List.iter (print_ranges oc) rs;
   close_out oc
