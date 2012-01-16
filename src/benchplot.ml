@@ -113,7 +113,7 @@ let multiplot
     ?(ylabel = "Time (s)")
     ?ymin
     ?ymax
-    (xs, ydatas) =
+    xs ydatas =
 (* assert (!min_disk_width < !max_disk_width); *)
   let filename = if Filename.check_suffix filename ".png" then filename else filename ^ ".png" in
   let num_xs = Array.length xs in
@@ -164,10 +164,9 @@ let split_line s = Str.split spc s
 let read_2d_data fn =
   let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
   let l1 = input_line ic in
-  assert (l1 = "x-values");
-  let xs = input_line ic |> split_line |> List.map int_of_string |> Array.of_list in
+  assert (l1 = "multiplot");
+  let xs = input_line ic |> split_line |> List.tl |> List.map int_of_string |> Array.of_list in
   let values = ref [] in
-let 
   try while true do
       let fname = input_line ic in
       let ys = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
@@ -176,6 +175,18 @@ let
       values := {fname; ys; lows; highs} :: !values
     done; assert false
   with End_of_file -> xs, Array.of_list (List.rev !values)
+
+let rec more_and_string words =
+  match words with
+  | [] -> assert false
+  | [word] -> " and " ^ word
+  | word :: words -> ", " ^ word ^ more_and_string words
+
+let and_string words =
+  match words with 
+  | [] -> ""
+  | [word] -> word
+  | word :: words -> word ^ more_and_string words
 
 let () =
   let num_args = Array.length Sys.argv in
@@ -186,8 +197,10 @@ let () =
   in let outfile = match num_args with
   | 1 | 2 -> infile^".png" | 3 -> Sys.argv.(2) | _ -> assert false
   in
-  let ys = read_2d_data infile in
-  multiplot ys ~filename:outfile
+  let (xs,ydatas) = read_2d_data infile in
+  let funcnames = Array.to_list (Array.map (fun x -> x.fname) ydatas) in
+  let title = "Comparison of " ^ and_string funcnames in
+  multiplot xs ydatas ~title:title ~filename:outfile
 
 (*  ( try
     let ys = read_data "times.flat" in
