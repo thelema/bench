@@ -41,7 +41,6 @@ let rev_arr a =
   let l = Array.length a in
   Array.init l (fun i -> a.(l - i - 1))
 
-
 type ydata = { fname: string; ests: float array; lows: float array; highs: float array }
 
 let ylengths_equal n x = for_all ((=) n) (Array.map Array.length [|x.lows;x.ests;x.highs|])
@@ -216,12 +215,9 @@ let and_string words =
 let () =
   let num_args = Array.length Sys.argv in
   if num_args > 3 then
-    failwith ("Usage:  " ^ Sys.argv.(0) ^ " [input filename [output filename]]\n")
-  else let infile = match num_args with
-  | 1 -> "lm.out" | 2 | 3 -> Sys.argv.(1) | _ -> assert false
-  in let outfile = match num_args with
-  | 1 | 2 -> infile^".png" | 3 -> Sys.argv.(2) | _ -> assert false
-  in
+    failwith ("Usage:  " ^ Sys.argv.(0) ^ " [<input filename> [<output filename>]]\n")
+  else let infile = if num_args < 2 then   "lm.out"    else Sys.argv.(1) in
+  let     outfile = if num_args < 3 then infile^".png" else Sys.argv.(2) in
   let (xs,ydatas) = read_2d_data infile in
   let funcnames = Array.to_list (Array.map (fun x -> x.fname) ydatas) in
   let title = "Comparison of " ^ and_string funcnames in
@@ -232,3 +228,5 @@ let () =
     plot ys ~filename:"times.png"
     with _ -> () );
   ( try *)
+
+(*    with _ -> () );*)
