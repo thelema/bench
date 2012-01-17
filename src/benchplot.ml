@@ -213,11 +213,13 @@ let and_string words =
   | word :: words -> word ^ more_and_string words
 
 let () =
-  let num_args = Array.length Sys.argv in
-  if num_args > 3 then
-    failwith ("Usage:  " ^ Sys.argv.(0) ^ " [<input filename> [<output filename>]]\n")
-  else let infile = if num_args < 2 then   "lm.out"    else Sys.argv.(1) in
-  let     outfile = if num_args < 3 then infile^".png" else Sys.argv.(2) in
+  let infile,outfile =
+    match Sys.argv with 
+    | [|_|] -> "lm.out", "lm.out.png" 
+    | [|_;infile|] -> infile, infile^".png" 
+    | [|_;infile;outfile|] -> infile,outfile
+    | _ -> failwith ("Usage:  " ^ Sys.argv.(0) ^ " [<input filename> [<output filename>]]\n")
+  in
   let (xs,ydatas) = read_2d_data infile in
   let funcnames = Array.to_list (Array.map (fun x -> x.fname) ydatas) in
   let title = "Comparison of " ^ and_string funcnames in
