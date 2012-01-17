@@ -7,6 +7,8 @@
 
 module A = Archimedes
 module VP = A.Viewport
+module BE = A.Backend
+module Clr = A.Color
 
 let default_width  = ref 650
 let default_height = ref 450
@@ -39,13 +41,12 @@ let rev_arr a =
   let l = Array.length a in
   Array.init l (fun i -> a.(l - i - 1))
 
+type ydata = { fname: string; ests: float array; lows: float array; highs: float array }
 
-type ydata = { fname: string; ys: float array; lows: float array; highs: float array }
-
-let ylengths_equal n x = for_all ((=) n) (Array.map Array.length [|x.lows;x.ys;x.highs|])
+let ylengths_equal n x = for_all ((=) n) (Array.map Array.length [|x.lows;x.ests;x.highs|])
 
 let assert_y_order ydata =
-  Array.iteri (fun n y -> assert (y > ydata.lows.(n) && y < ydata.highs.(n))) ydata.ys
+  Array.iteri (fun n est -> assert (est > ydata.lows.(n) && est < ydata.highs.(n))) ydata.ests
 
 let fold_fold f yss = fold f (Array.map (fold f) yss)
 
@@ -111,7 +112,7 @@ let multiplot
     ?(ylabel = "Time (s)")
     ?ymin
     ?ymax
-    (xs, ydatas) =
+    xs ydatas =
 (* assert (!min_disk_width < !max_disk_width); *)
   let filename = if Filename.check_suffix filename ".png" then filename else filename ^ ".png" in
   let num_xs = Array.length xs in
@@ -137,15 +138,39 @@ let multiplot
     let ys2 = Array.append ydata.highs (rev_arr ydata.lows) in
     A.Array.xy vp xs2 ys2 ~fill:true ~fillcolor:edgecolor ~style:`Lines;
     A.set_color vp color;
-    A.Array.xy vp xs ydata.ys ~style:`Lines;
+    A.Array.xy vp xs ydata.ests ~style:`Lines;
     let text_pos_x = xs.(Array.length xs - 1) in
-    let text_pos_y = ydata.ys.(Array.length ydata.ys - 1) in
+    let text_pos_y = ydata.ests.(Array.length ydata.ests - 1) in
     A.Viewport.text vp text_pos_x text_pos_y ydata.fname;
   in
   for i = 0 to Array.length ydatas - 1 do
     plot_ydata linecolors.(i) ydatas.(i);
   done;
   A.close vp
+
+
+(* FILE INPUT *)
+
+let spc = Str.regexp " "
+let split_line s = Str.split spc s
+
+let floats_of_strings strs = Array.of_list (List.map float_of_string strs)
+let   ints_of_strings strs = Array.of_list (List.map   int_of_string strs)
+
+let xs_of_string text =
+    match split_line text with
+    | "x-values" :: x_strs ->
+	(try ints_of_strings x_strs
+	with Failure "int_of_string" -> failwith ("Bad int(s) in x line:\n" ^ text))
+    | _ ->
+	failwith "Bad x-data line.  Should be \"x-values\" <int>+."
+
+let ys_of_string label line =
+  match split_line line with 
+  | str :: strs when str = label ->
+      (try floats_of_strings strs
+      with Failure "float_of_string" -> failwith ("Bad float(s) in " ^ label ^ " line:\n" ^ line))
+  | _ -> failwith ("Bad " ^ label ^ " line:\n" ^ line)
 
 let read_data fn =
   let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
@@ -156,31 +181,54 @@ let read_data fn =
     done; assert false
   with End_of_file -> Array.of_list (List.rev !values)
 
-let spc = Str.regexp " "
-let split_line s = Str.split spc s
+let input_ydata data_in =
+  let fname = input_line data_in in
+  try
+    let ests  = ys_of_string "est" (input_line data_in) in
+    let lows  = ys_of_string "lo"  (input_line data_in) in
+    let highs = ys_of_string "hi"  (input_line data_in) in
+    { fname = fname; ests = ests; lows = lows; highs = highs }
+  with
+    End_of_file -> failwith "Reached end of file while reading y data."
 
 let read_2d_data fn =
   let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
   let l1 = input_line ic in
-  assert (l1 = "x-values");
-  let xs = input_line ic |> split_line |> List.map int_of_string |> Array.of_list in
-  let values = ref [] in
-  try while true do
-      let fname = input_line ic in
-      let ys = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
-      let lows = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
-      let highs = input_line ic |> split_line |> List.tl |> List.map float_of_string |> Array.of_list in
-      values := {fname; ys; lows; highs} :: !values
-    done; assert false
-  with End_of_file -> xs, Array.of_list (List.rev !values)
+  assert (l1 = "multiplot");
+  let xs = xs_of_string (input_line ic) in
+  let ydatas = ref [] in
+  try while true do ydatas := input_ydata ic :: !ydatas done; assert false
+  with End_of_file -> xs, Array.of_list (List.rev !ydatas)
+
+let rec more_and_string words =
+  match words with
+  | [] -> assert false
+  | [word] -> " and " ^ word
+  | word :: words -> ", " ^ word ^ more_and_string words
+
+let and_string words =
+  match words with 
+  | [] -> ""
+  | [word] -> word
+  | word :: words -> word ^ more_and_string words
 
 let () =
-  let fn = if Array.length Sys.argv < 2 then "lm.out" else Sys.argv.(1) in
+  let infile,outfile =
+    match Sys.argv with 
+    | [|_|] -> "lm.out", "lm.out.png" 
+    | [|_;infile|] -> infile, infile^".png" 
+    | [|_;infile;outfile|] -> infile,outfile
+    | _ -> failwith ("Usage:  " ^ Sys.argv.(0) ^ " [<input filename> [<output filename>]]\n")
+  in
+  let (xs,ydatas) = read_2d_data infile in
+  let funcnames = Array.to_list (Array.map (fun x -> x.fname) ydatas) in
+  let title = "Comparison of " ^ and_string funcnames in
+  multiplot xs ydatas ~title:title ~filename:outfile
+
 (*  ( try
     let ys = read_data "times.flat" in
     plot ys ~filename:"times.png"
     with _ -> () );
   ( try *)
-      let data = read_2d_data fn in
-      multiplot ~filename:(fn ^ ".png") data
+
 (*    with _ -> () );*)
