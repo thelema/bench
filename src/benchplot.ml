@@ -101,7 +101,7 @@ let plot
   else invalid_arg "style must be one of `Auto,`Bars,`Disks,`Impulses,`Lollipops";
   A.close vp
 
-let linecolors = A.Color.([| red; blue; green; orange; chocolate; black; magenta; thistle; gold; silver |])
+let linecolors = A.Color.([| red; blue; green; orange; chocolate; magenta; gold; silver |])
 
 let multiplot
     ?(outfile = "multiplot_out.png")
@@ -249,11 +249,42 @@ let comp_1d     ?(outfile = "multiplot_out.png")
     let bgcolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.3) color) in
     A.set_color vp bgcolor;
     VP.rectangle vp ~x:i_05 ~w:1. ~y:lo ~h:(hi-.lo);
-    A.set_color vp color;
+    A.set_color vp A.Color.black;
     VP.set_line_width vp 1.0;
     VP.move_to vp ~x:i_05 ~y:point;
     VP.rel_line_to vp ~x:1.0 ~y:0.0;
     VP.text vp (float i) 0. name;
+  in
+  Array.iteri (fun i ri -> plot_res linecolors.(i) i ri) resl;
+  A.close vp
+
+let comp_1d_cdf ?(outfile = "multiplot_out.png")
+    ?(width = !default_width)
+    ?(height = !default_height)
+    ?(title = "Time Comparison (lower is better)")
+    ?(ylabel = "Time (s)")
+    ?(ymin=0.)
+    ?ymax
+    resl =
+(* assert (!min_disk_width < !max_disk_width); *)
+  let filename = if Filename.check_suffix outfile ".png" then outfile else outfile ^ ".png" in
+  let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
+  VP.title vp title;
+  let _,_,_,_,d0 = resl.(0) in
+  VP.xrange vp 0. (float (Array.length d0 - 1));
+  VP.xlabel vp "CDF";
+  Array.iter (fun (_,_,_,_,ys) -> Array.sort (fun x (y:float) -> Pervasives.compare x y) ys) resl;
+  let ymax = ensure ymax (Array.fold_left max 0.) (Array.map (fun (_,_,_,_,ys) -> ys.(Array.length ys - 1)) resl) in
+  VP.yrange vp ymin ymax;
+  VP.ylabel vp ylabel;
+  A.Axes.box vp;
+  let plot_res color i (name, _point, _lo, _hi, ys) =
+    A.set_color vp color;
+    A.Array.y vp ~style:`Lines ys;
+    let l = Array.length ys in
+    let text_pos_x = Random.int (l*2/3) + (l/6) in
+    let text_pos_y = ys.(text_pos_x) in
+    VP.text vp (float text_pos_x) text_pos_y name;
   in
   Array.iteri (fun i ri -> plot_res linecolors.(i) i ri) resl;
   A.close vp
