@@ -508,7 +508,7 @@ type config = {
    be non-global
 *)
 let config = { verbose = true;
-               samples=1_000;
+               samples=300;
                resamples = 1_000;
                confidence_interval = 0.95;
                gc_between_tests= false;
@@ -565,11 +565,14 @@ let init_environment () =
 
    The number of iterations of the benchmark to run per sample is
    computed based on the number of iterations that can be run in 0.1s
-   so that each sample takes at most (clock_res * 1000) or 0.1 seconds.
-*)
+   so that each sample takes at most (clock_res * 1000) or 0.1
+   seconds, unless it takes longer than that for a single repetition.
+ *)
 let run_benchmark (f: int -> 'a) =
+  (* warm up clock function *)
   let tclock i = M.time_ (repeat M.timer ()) i in
   run_for_time 0.1 tclock 10_000 |> ignore;
+  (* run for at least 0.1s per sample, and at least 1000*clock resolution *)
   let min_time = min (env.clock_res *. 1_000.) 0.1 in
   let (test_time, test_iters, _) = run_for_time min_time f 1 in
   if config.verbose then
