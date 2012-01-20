@@ -37,3 +37,9 @@ Executable erf
   MainIs:  erf.ml
   Install: false
   CompiledObject: best
+
+Executable match
+  Path:    examples/
+  MainIs:  match.ml
+  Install: false
+  CompiledObject: best
