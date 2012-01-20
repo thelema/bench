@@ -199,6 +199,7 @@ module Bootstrap = struct
 
   type estimate = {point: float; lower: float; upper: float; confidence: float}
   let estimate p l u c = {point=p; lower=l; upper=u; confidence=c}
+  let get {point;lower;upper} = (point,lower,upper)
 
   let est_scale s est = {est with point = s *. est.point; lower = s *. est.lower; upper = s *. est.upper}
 
@@ -414,8 +415,6 @@ let list_print ~first ~sep ~last to_string oc lst =
   lp_aux lst;
   output_string oc last
 
-
-
 (* print a list of results to a csv file *)
 let print_csv resl oc =
   let print_csv_string l =
@@ -434,7 +433,16 @@ let print_json resl oc =
   ) resl
 
 let print_flat resl oc = match resl with [] -> () | res::_ ->
+  fprintf oc "flat\n";
   Array.iter (fprintf oc "%g\n") res.times
+
+let print_result oc res =
+  let mp,ml,mu = Bootstrap.get res.mean in
+  let sp,sl,su = Bootstrap.get res.stdev in
+  fprintf oc "%s\n%g %g %g\n%g %g %g\n" res.desc mp ml mu sp sl su;
+  Array.iter (fprintf oc "%g ") res.times;
+  fprintf oc "\n"
+
 
 let print_times filename =
   let handler =
@@ -684,4 +692,10 @@ let print_2d fn (points,rs) =
   output_string oc "multiplot\n";
   list_print ~first:"x-values " ~last:"\n" ~sep:" " string_of_int oc points;
   List.iter (print_ranges oc) rs;
+  close_out oc
+
+let print_1d fn resl =
+  let oc = open_out fn in
+  output_string oc "comparison\n";
+  List.iter (print_result oc) resl;
   close_out oc

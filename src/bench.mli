@@ -118,7 +118,7 @@ val bench_range : ('a -> 'b) -> input_gen:(int -> 'a) -> ?n:int -> (int * int) -
 val bench_2d : (string * ('a -> 'b)) list -> input_gen:(int -> 'a) -> ?n:int -> (int * int) -> (int list * (string * results list) list)
 
 val print_2d : string -> (int list * (string * results list) list) -> unit
-
+val print_1d : string -> results list -> unit
 
 (** The function that summarizes the results by comparing the results
     linearly.  The first parameter is the alpha (type I error rate)
