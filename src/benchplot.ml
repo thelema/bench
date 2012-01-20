@@ -51,7 +51,7 @@ let assert_y_order ydata =
 let fold_fold f yss = fold f (Array.map (fold f) yss)
 
 let plot
-    ?(filename="plot_out.png")
+    ?(outfile="plot_out.png")
     ?width:target_width
     ?(height = !default_height)
     ?(title="BatBench plot")
@@ -61,7 +61,7 @@ let plot
     ?(style=`Auto)
     ys =
   assert (!min_disk_width < !max_disk_width);
-  let filename = if Filename.check_suffix filename ".png" then filename else filename ^ ".png" in
+  let outfile = if Filename.check_suffix outfile ".png" then outfile else outfile ^ ".png" in
   let num_vals = Array.length ys in
   let (width,bar_width)  =
     match target_width with
@@ -73,7 +73,7 @@ let plot
 	if bar_width = 0 then (num_vals,1) else (bar_width*num_vals, bar_width)
   in
   let impulse_thickness = max 1 (bar_width/4) in
-  let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
+  let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; outfile] in
   VP.title vp title;
   VP.xrange vp 0. (float_of_int num_vals);
   let ymax = match ymax with Some max -> max | None -> Array.fold_left max 0. ys in
@@ -104,7 +104,7 @@ let plot
 let linecolors = A.Color.([| red; blue; green; orange; chocolate; black; magenta; thistle; gold; silver |])
 
 let multiplot
-    ?(filename = "multiplot_out.png")
+    ?(outfile = "multiplot_out.png")
     ?(width = !default_width)
     ?(height = !default_height)
     ?(title = "Multiplot")
@@ -114,7 +114,7 @@ let multiplot
     ?ymax
     xs ydatas =
 (* assert (!min_disk_width < !max_disk_width); *)
-  let filename = if Filename.check_suffix filename ".png" then filename else filename ^ ".png" in
+  let filename = if Filename.check_suffix outfile ".png" then outfile else outfile ^ ".png" in
   let num_xs = Array.length xs in
   assert (for_all (ylengths_equal num_xs) ydatas);
   Array.iter (fun n -> assert (xs.(n) < xs.(n+1))) (range0 (num_xs - 1));
@@ -148,7 +148,6 @@ let multiplot
   done;
   A.close vp
 
-
 (* FILE INPUT *)
 
 let spc = Str.regexp " "
@@ -166,14 +165,13 @@ let xs_of_string text =
 	failwith "Bad x-data line.  Should be \"x-values\" <int>+."
 
 let ys_of_string label line =
-  match split_line line with 
+  match split_line line with
   | str :: strs when str = label ->
       (try floats_of_strings strs
       with Failure "float_of_string" -> failwith ("Bad float(s) in " ^ label ^ " line:\n" ^ line))
   | _ -> failwith ("Bad " ^ label ^ " line:\n" ^ line)
 
-let read_data fn =
-  let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
+let read_data ic =
   let values = ref [] in
   try while true do
       let x = float_of_string (input_line ic) in
@@ -191,10 +189,7 @@ let input_ydata data_in =
   with
     End_of_file -> failwith "Reached end of file while reading y data."
 
-let read_2d_data fn =
-  let ic = try open_in fn with _ -> failwith ("Could not open " ^ fn) in
-  let l1 = input_line ic in
-  assert (l1 = "multiplot");
+let read_2d_data ic =
   let xs = xs_of_string (input_line ic) in
   let ydatas = ref [] in
   try while true do ydatas := input_ydata ic :: !ydatas done; assert false
@@ -207,28 +202,79 @@ let rec more_and_string words =
   | word :: words -> ", " ^ word ^ more_and_string words
 
 let and_string words =
-  match words with 
+  match words with
   | [] -> ""
   | [word] -> word
   | word :: words -> word ^ more_and_string words
 
+let space = Str.regexp " "
+let map3 f (x,y,z) = (f x, f y, f z)
+
+let read_1d_data ic =
+  let ret = ref [] in
+  try while true do
+      let name = input_line ic in
+      let mp,ml,mh = match Str.split space (input_line ic) with [p;l;u] -> map3 float_of_string (p,l,u) | _ -> assert false in
+      let _sp,_sl,_sh = match Str.split space (input_line ic) with [p;l;u] -> map3 float_of_string (p,l,u) | _ -> assert false in
+      let data = Str.split space (input_line ic) |> List.map float_of_string |> Array.of_list in
+      ret := (name,mp,ml,mh,data) :: !ret;
+  done; assert false
+  with End_of_file -> Array.of_list (List.rev !ret)
+
+let comp_1d     ?(outfile = "multiplot_out.png")
+    ?(width = !default_width)
+    ?(height = !default_height)
+    ?(title = "Time Comparison (lower is better)")
+    ?(ylabel = "Time (s)")
+    ?(ymin=0.)
+    ?ymax
+    resl =
+(* assert (!min_disk_width < !max_disk_width); *)
+  let filename = if Filename.check_suffix outfile ".png" then outfile else outfile ^ ".png" in
+  let num_xs = Array.length resl in
+  let vp = A.init ~w:(float_of_int width) ~h:(float_of_int height) ["Cairo"; "PNG"; filename] in
+  VP.title vp title;
+  VP.xrange vp (-0.5) (float num_xs -. 0.5);
+
+  let ymax = ensure ymax (fold_fold max) (Array.map (fun (_,_,_,_,ys) -> ys) resl) in
+  VP.yrange vp ymin ymax;
+  VP.ylabel vp ylabel;
+  A.Axes.box vp;
+  let plot_res color i (name, point, lo, hi, ys) =
+    let i_05 = float i -. 0.5 in
+    let dotcolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.2) color) in
+    let xs = Array.init (Array.length ys) (fun _ -> i_05 +. Random.float 1.0) in
+    A.set_color vp dotcolor;
+    A.Array.xy vp xs ys;
+    let bgcolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.3) color) in
+    A.set_color vp bgcolor;
+    VP.rectangle vp ~x:i_05 ~w:1. ~y:lo ~h:(hi-.lo);
+    A.set_color vp color;
+    VP.set_line_width vp 1.0;
+    VP.move_to vp ~x:i_05 ~y:point;
+    VP.rel_line_to vp ~x:1.0 ~y:0.0;
+    VP.text vp (float i) 0. name;
+  in
+  Array.iteri (fun i ri -> plot_res linecolors.(i) i ri) resl;
+  A.close vp
+
 let () =
   let infile,outfile =
-    match Sys.argv with 
-    | [|_|] -> "lm.out", "lm.out.png" 
-    | [|_;infile|] -> infile, infile^".png" 
+    match Sys.argv with
+    | [|_|] -> "lm.out", "lm.out.png"
+    | [|_;infile|] -> infile, infile^".png"
     | [|_;infile;outfile|] -> infile,outfile
     | _ -> failwith ("Usage:  " ^ Sys.argv.(0) ^ " [<input filename> [<output filename>]]\n")
   in
-  let (xs,ydatas) = read_2d_data infile in
-  let funcnames = Array.to_list (Array.map (fun x -> x.fname) ydatas) in
-  let title = "Comparison of " ^ and_string funcnames in
-  multiplot xs ydatas ~title:title ~filename:outfile
-
-(*  ( try
-    let ys = read_data "times.flat" in
-    plot ys ~filename:"times.png"
-    with _ -> () );
-  ( try *)
-
-(*    with _ -> () );*)
+  let ic = try open_in infile with _ -> failwith ("Could not open " ^ infile) in
+  match input_line ic with
+    | "flat" ->
+      read_data ic |> plot ~outfile
+    | "multiplot" ->
+      let (xs,ydatas) = read_2d_data ic in
+      let funcnames = Array.to_list (Array.map (fun x -> x.fname) ydatas) in
+      let title = "Comparison of " ^ and_string funcnames in
+      multiplot xs ydatas ~title:title ~outfile
+    | "comparison" ->
+      read_1d_data ic |> comp_1d ~outfile
+    | _ -> failwith "Unknown file format";
