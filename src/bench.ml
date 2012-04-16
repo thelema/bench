@@ -508,6 +508,7 @@ type config = {
   mutable resamples: int;
   mutable confidence_interval: float;
   mutable output: (results list -> unit) list;
+  mutable min_iters: int;
 }
 
 (* The module-global configuration for running benchmarks.
@@ -522,6 +523,7 @@ let config = { verbose = true;
                gc_between_tests= false;
 (*	       output = [summarize ~alpha:0.05];*)
                output = [print_times "times.flat"; summarize ~alpha:0.05];
+               min_iters = 1;
              }
 
 let vtap f x = if config.verbose then (f x; x) else x
@@ -567,6 +569,8 @@ let init_environment () =
     env.clock_cost <- clock_cost
 
 
+let min_runtime = ref 0.1
+
 (* benchmark a function appropriate for the current environment.
 
    The number of samples is given in config.sample
@@ -580,13 +584,13 @@ let run_benchmark (f: int -> 'a) =
   (* warm up clock function *)
   let tclock i = M.time_ (repeat M.timer ()) i in
   run_for_time 0.1 tclock 10_000 |> ignore;
-  (* run for at least 0.1s per sample, and at least 1000*clock resolution *)
-  let min_time = min (env.clock_res *. 1_000.) 0.1 in
+  (* run for 0.1s per sample or 1000*clock resolution, whichever is shorter *)
+  let min_time = min (env.clock_res *. 1_000.) !min_runtime in
   let (test_time, test_iters, _) = run_for_time min_time f 1 in
   if config.verbose then
     printf "Ran %d iterations in %a\n%!" test_iters M.print test_time;
   let iters = ceil (min_time *. float test_iters /. test_time) in
-  let iters_int = int_of_float iters in
+  let iters_int = max (int_of_float iters) config.min_iters in
   let est_time = float config.samples *. iters *. test_time /. float test_iters in
   if config.verbose then
     printf "Collecting %d samples, %d iterations each, estimated time: %a\n%!"

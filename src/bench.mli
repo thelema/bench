@@ -152,6 +152,8 @@ type config = {
   mutable output : (results list -> unit) list;
   (** Output functions to use.  Default: [summarize 0.05] *)
 
+  mutable min_iters : int;
+  (* minimum number of iterations of each function to use *)
 }
 
 (* This module's global config *)
