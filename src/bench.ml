@@ -452,7 +452,7 @@ let print_times filename =
     else failwith "Unknown output filename suffix"
   in
   (fun resl ->
-    Printf.eprintf "Saving times to %s\n" filename;
+    Printf.eprintf "Saving times to %s\n%!" filename;
     let oc = open_out filename in
     handler resl oc;
     close_out oc;
@@ -520,7 +520,7 @@ let config = { verbose = true;
                samples=300;
                resamples = 1_000;
                confidence_interval = 0.95;
-               gc_between_tests= false;
+               gc_between_tests= true;
 (*	       output = [summarize ~alpha:0.05];*)
                output = [print_times "times.flat"; summarize ~alpha:0.05];
                min_iters = 1;
