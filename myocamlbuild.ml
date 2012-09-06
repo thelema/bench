@@ -1,7 +1,7 @@
 (* OASIS_START *)
-(* DO NOT EDIT (digest: 58ae894004a915adce51d0fbdb811ae6) *)
+(* DO NOT EDIT (digest: 4577e254103f81b743533f7d36bae012) *)
 module OASISGettext = struct
-# 21 "/home/thelema/.odb/install-oasis/oasis-0.2.1~alpha1/src/oasis/OASISGettext.ml"
+# 21 "/home/thelema/.odb/build/install-oasis/oasis-0.3.0/src/oasis/OASISGettext.ml"
   
   let ns_ str =
     str
@@ -24,7 +24,7 @@ module OASISGettext = struct
 end
 
 module OASISExpr = struct
-# 21 "/home/thelema/.odb/install-oasis/oasis-0.2.1~alpha1/src/oasis/OASISExpr.ml"
+# 21 "/home/thelema/.odb/build/install-oasis/oasis-0.3.0/src/oasis/OASISExpr.ml"
   
   
   
@@ -114,8 +114,9 @@ module OASISExpr = struct
 end
 
 
+# 117 "myocamlbuild.ml"
 module BaseEnvLight = struct
-# 21 "/home/thelema/.odb/install-oasis/oasis-0.2.1~alpha1/src/base/BaseEnvLight.ml"
+# 21 "/home/thelema/.odb/build/install-oasis/oasis-0.3.0/src/base/BaseEnvLight.ml"
   
   module MapString = Map.Make(String)
   
@@ -211,8 +212,9 @@ module BaseEnvLight = struct
 end
 
 
+# 215 "myocamlbuild.ml"
 module MyOCamlbuildFindlib = struct
-# 21 "/home/thelema/.odb/install-oasis/oasis-0.2.1~alpha1/src/plugins/ocamlbuild/MyOCamlbuildFindlib.ml"
+# 21 "/home/thelema/.odb/build/install-oasis/oasis-0.3.0/src/plugins/ocamlbuild/MyOCamlbuildFindlib.ml"
   
   (** OCamlbuild extension, copied from 
     * http://brion.inria.fr/gallium/index.php/Using_ocamlfind_with_ocamlbuild
@@ -321,7 +323,7 @@ module MyOCamlbuildFindlib = struct
 end
 
 module MyOCamlbuildBase = struct
-# 21 "/home/thelema/.odb/install-oasis/oasis-0.2.1~alpha1/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
+# 21 "/home/thelema/.odb/build/install-oasis/oasis-0.3.0/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
   
   (** Base functions for writing myocamlbuild.ml
       @author Sylvain Le Gall
@@ -330,19 +332,24 @@ module MyOCamlbuildBase = struct
   
   
   open Ocamlbuild_plugin
+  module OC = Ocamlbuild_pack.Ocaml_compiler
   
   type dir = string 
   type file = string 
   type name = string 
   type tag = string 
   
-# 55 "/home/thelema/.odb/install-oasis/oasis-0.2.1~alpha1/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
+# 56 "/home/thelema/.odb/build/install-oasis/oasis-0.3.0/src/plugins/ocamlbuild/MyOCamlbuildBase.ml"
   
   type t =
       {
         lib_ocaml: (name * dir list) list;
         lib_c:     (name * dir * file list) list; 
         flags:     (tag list * (spec OASISExpr.choices)) list;
+        (* Replace the 'dir: include' from _tags by a precise interdepends in
+         * directory.
+         *)
+        includes:  (dir * dir list) list;
       } 
   
   let env_filename =
@@ -355,6 +362,12 @@ module MyOCamlbuildBase = struct
         (fun dispatch -> dispatch e)
         lst 
   
+  let tag_libstubs nm =
+    "use_lib"^nm^"_stubs"
+
+  let nm_libstubs nm =
+    nm^"_stubs"
+
   let dispatch t e = 
     let env = 
       BaseEnvLight.load 
@@ -386,36 +399,47 @@ module MyOCamlbuildBase = struct
             (* Declare OCaml libraries *)
             List.iter 
               (function
-                 | lib, [] ->
-                     ocaml_lib lib;
-                 | lib, dir :: tl ->
-                     ocaml_lib ~dir:dir lib;
+                 | nm, [] ->
+                     ocaml_lib nm
+                 | nm, dir :: tl ->
+                     ocaml_lib ~dir:dir (dir^"/"^nm);
                      List.iter 
                        (fun dir -> 
-                          flag 
-                            ["ocaml"; "use_"^lib; "compile"] 
-                            (S[A"-I"; P dir]))
+                          List.iter
+                            (fun str ->
+                               flag ["ocaml"; "use_"^nm; str] (S[A"-I"; P dir]))
+                            ["compile"; "infer_interface"; "doc"])
                        tl)
               t.lib_ocaml;
   
+            (* Declare directories dependencies, replace "include" in _tags. *)
+            List.iter
+              (fun (dir, include_dirs) ->
+                 Pathname.define_context dir include_dirs)
+              t.includes;
+
             (* Declare C libraries *)
             List.iter
               (fun (lib, dir, headers) ->
                    (* Handle C part of library *)
-                   flag ["link"; "library"; "ocaml"; "byte"; "use_lib"^lib]
-                     (S[A"-dllib"; A("-l"^lib); A"-cclib"; A("-l"^lib)]);
+                   flag ["link"; "library"; "ocaml"; "byte"; tag_libstubs lib]
+                     (S[A"-dllib"; A("-l"^(nm_libstubs lib)); A"-cclib";
+                        A("-l"^(nm_libstubs lib))]);
   
-                   flag ["link"; "library"; "ocaml"; "native"; "use_lib"^lib]
-                     (S[A"-cclib"; A("-l"^lib)]);
+                   flag ["link"; "library"; "ocaml"; "native"; tag_libstubs lib]
+                     (S[A"-cclib"; A("-l"^(nm_libstubs lib))]);
                         
-                   flag ["link"; "program"; "ocaml"; "byte"; "use_lib"^lib]
-                     (S[A"-dllib"; A("dll"^lib)]);
+                   flag ["link"; "program"; "ocaml"; "byte"; tag_libstubs lib]
+                     (S[A"-dllib"; A("dll"^(nm_libstubs lib))]);
   
                    (* When ocaml link something that use the C library, then one
                       need that file to be up to date.
                     *)
-                   dep  ["link"; "ocaml"; "use_lib"^lib] 
-                     [dir/"lib"^lib^"."^(!Options.ext_lib)];
+                   dep ["link"; "ocaml"; "program"; tag_libstubs lib]
+                     [dir/"lib"^(nm_libstubs lib)^"."^(!Options.ext_lib)];
+
+                   dep  ["compile"; "ocaml"; "program"; tag_libstubs lib]
+                     [dir/"lib"^(nm_libstubs lib)^"."^(!Options.ext_lib)];
   
                    (* TODO: be more specific about what depends on headers *)
                    (* Depends on .h files *)
@@ -449,16 +473,19 @@ module MyOCamlbuildBase = struct
 end
 
 
+# 476 "myocamlbuild.ml"
 open Ocamlbuild_plugin;;
 let package_default =
   {
-     MyOCamlbuildBase.lib_ocaml = [("src/bench", ["src"])];
+     MyOCamlbuildBase.lib_ocaml = [("bench", ["src"])];
      lib_c = [];
      flags = [];
+     includes = [];
      }
   ;;
 
 let dispatch_default = MyOCamlbuildBase.dispatch_default package_default;;
 
+# 490 "myocamlbuild.ml"
 (* OASIS_STOP *)
 Ocamlbuild_plugin.dispatch dispatch_default;;
