@@ -541,12 +541,14 @@ let init_environment () =
       let times = Array.init (i+1) (fun _ -> M.timer()) in
       let pos_diffs =
         Array.init i (fun i -> times.(i+1) -. times.(i))
-	|> Array.to_list |> List.filter is_positive |> Array.of_list
+	           |> Array.to_list |> List.filter is_positive |> Array.of_list
       in
       pos_diffs
     in
     let cost t t0 = (* compute clock cost *)
-      let tclock i = M.time_ (repeat M.timer ()) i in
+      (* put timer in closure to compensate for testing closure *)
+      let f () = M.timer () in
+      let tclock i = M.time_ (repeat f ()) i in
       ignore (tclock 100);
       let (_,iters,elapsed) = run_for_time t0 tclock 10_000 in
       let times = Array.init (ceil (t /. elapsed) |> int_of_float)
@@ -559,7 +561,7 @@ let init_environment () =
     let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
     if config.verbose then print_string "Estimating clock resolution";
     let (_,i,clocks) = run_for_time 0.5 resolution seed in
-  (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
+    (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
     let clock_res = Outliers.analyze_mean i clocks in
     if config.verbose then printf " (%a)\nEstimating cost of timer call" M.print clock_res;
     let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
