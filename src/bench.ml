@@ -676,14 +676,22 @@ let bench_range f ~input_gen ?n (lo,hi) =
   let run_one i = run_and_analyze (string_of_int i) (repeat f (input_gen i)) in
   List.map run_one points
 
+let rec transpose list = match list with
+  | []             -> []
+  | []   :: xss    -> transpose xss
+  | (x::xs) :: xss ->
+    (x :: List.map List.hd xss) :: transpose (xs :: List.map List.tl xss)
+
 let bench_2d fs ~input_gen ?n (lo,hi) =
   let points = gen_points ?n lo hi in
-  let run_one (df,f) (i,input) =
+  let run_one (df,f) i input =
     let d = df ^ "_" ^ string_of_int i in
     run_and_analyze d (repeat f input) |> res_scale (1. /. float i)
   in
-  let inputs = List.map (fun i -> i, input_gen i) points in
-  points, List.map (fun (df,_ as f) -> df, List.map (run_one f) inputs) fs
+  let run_all i = let inp = input_gen i in List.map (fun f -> run_one f i inp) fs in
+  let results_by_input = List.map run_all points in
+  let results_by_f = transpose results_by_input in
+  points, List.map2 (fun (df,_) rs -> df, rs) fs results_by_f
 (* returns list of (desc, result list); each sublist is all results
    for one function *)
 
