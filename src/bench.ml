@@ -501,6 +501,46 @@ let summarize ?(alpha=0.05) = function [] -> () | [_] -> () (* no functions - do
     in
     print_changes ~pre:"" (List.sort cmp_point res_list)
 
+let prediction alpha mean stdev =
+  let eta = Normal_dist.standard_quant (1. -. alpha /. 2.) in
+  {
+    Bootstrap.point = mean;
+    Bootstrap.lower = mean -. eta *. stdev;
+    Bootstrap.upper = mean +. eta *. stdev;
+    Bootstrap.confidence = alpha
+  };;
+
+let print_prediction alpha oc r =
+  let p = prediction alpha r.mean.Bootstrap.point r.stdev.Bootstrap.point in
+  fprintf oc "%a, %a" M.print p.Bootstrap.lower M.print p.Bootstrap.upper
+;;
+
+let difference alpha r1 r2 =
+  (* calculate mean and standard deviation of difference *)
+  let mean = r1.mean.Bootstrap.point -. r2.mean.Bootstrap.point
+  and s1 = r1.stdev.Bootstrap.point and s2 = r2.stdev.Bootstrap.point in
+  let stdev = sqrt(s1 *. s1 +. s2 *. s2) in
+  prediction alpha mean stdev
+;;
+
+let summarize_pi ?(alpha=0.05) = function [] -> () | [_] -> () (* no functions - do nothing *)
+  | res_list -> (* multiple functions tested - group and compare *)
+    let rec print_changes ~pre = function
+      | [] -> assert false
+      | [r] -> printf "%s (%a)\n" r.desc (print_prediction alpha) r
+      | r1::(r2::_ as tl) ->
+        printf "%s (%a) %s" r1.desc (print_prediction alpha) r1 pre;
+        let diff = difference alpha r1 r2 in
+        if diff.Bootstrap.lower <= 0. && diff.Bootstrap.upper >= 0. then
+          printf "is probably (%a, %a) same speed as\n"
+            M.print diff.Bootstrap.lower M.print diff.Bootstrap.upper
+        else
+          printf "is %.1f%% faster than\n" (change r1 r2);
+        print_changes ~pre:"which " tl
+    in
+    print_changes ~pre:"" (List.sort cmp_point res_list)
+
+
 type config = {
   mutable verbose : bool;
   mutable samples: int;
