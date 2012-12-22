@@ -126,6 +126,14 @@ val print_1d : string -> results list -> unit
     the tests. *)
 val summarize : ?alpha:float -> results list -> unit
 
+(** The function that summarizes the results by comparing the
+ * prediction interval at level alpha of the results
+ * (eg. alpha=0.05 means 95% prediction interval).
+ * Two results are considered to be the same if the prediction interval
+ * of their results' difference includes 0.
+ *)
+val summarize_pi: ?alpha:float -> results list -> unit
+
 (** {6 Configuration API} *)
 
 (** The following global configuration parameters are available for
