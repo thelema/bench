@@ -11,14 +11,15 @@ Library bench
   Path:       src/
   Modules:    Bench
   BuildDepends: unix
+  FindlibName: bench
 
-Document API
-  Title:           API reference for Bench
-  Type:            OCamlbuild (0.2)
-  InstallDir:      $docdir/api
-  BuildTools:      ocamldoc, ocamlbuild
-  XOCamlbuildPath: src
-  XOCamlbuildLibraries: bench
+#Document API
+#  Title:           API reference for Bench
+#  Type:            OCamlbuild (0.2)
+#  InstallDir:      $docdir/api
+#  BuildTools:      ocamldoc, ocamlbuild
+#  XOCamlbuildPath: src/
+#  XOCamlbuildLibraries: bench
 
 Executable benchplot
   Path:    src/
