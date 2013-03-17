@@ -7,6 +7,7 @@
 
 module A = Archimedes
 module VP = A.Viewport
+module AP = A.Path
 module BE = A.Backend
 module Clr = A.Color
 
@@ -49,6 +50,40 @@ let assert_y_order ydata =
   Array.iteri (fun n est -> assert (est > ydata.lows.(n) && est < ydata.highs.(n))) ydata.ests
 
 let fold_fold f yss = fold f (Array.map (fold f) yss)
+
+(* gap is between labels, height is height of label *)
+let position_labels gap height pls =
+  let compare_pl ((p1:float),_) (p2,_) = Pervasives.compare p1 p2 in
+  let g_height ls = float (List.length ls - 1) *. (height +. gap) +. height in
+  let does_overlap (pos1,ls1) (pos2,ls2) =
+    let center_gap = abs_float (pos1 -. pos2) in
+    let h1 = g_height ls1 and h2 = g_height ls2 in
+    center_gap -. (h1/.2.) -. (h2/.2.) < gap
+  in
+  let merge_plgs (p1,ls1) (p2, ls2) =
+    let l1 = float(List.length ls1) in
+    let l2 = float(List.length ls2) in
+    (p1 *. l1 +. p2 *. l2) /. (l1+.l2), ls1 @ ls2
+  in
+  let rec resolve_overlaps plgs =
+    let rec find_overlap = function
+      | plg1::plg2::tl when does_overlap plg1 plg2 ->
+	find_overlap (merge_plgs plg1 plg2 :: tl)
+      | h::(_::_ as tl) -> h :: find_overlap tl
+      | ([_]|[]) as x -> x
+    in
+    let ovl = find_overlap plgs in
+    if List.length ovl < List.length plgs
+    then resolve_overlaps ovl (* repeat until no overlaps *)
+    else ovl
+  in
+  let ungroup (p,ls) =
+    let p0 = ref (p -. g_height ls /. 2. +. height /. 2.) in
+    List.map (fun l -> let r = (!p0,l) in p0 := !p0 +. height +. gap; r) ls
+  in
+  let plgs = List.sort compare_pl (List.map (fun (pos, label) -> pos, [label]) pls) in
+  let plgs_grouped = resolve_overlaps plgs in
+  List.concat (List.map ungroup plgs_grouped)
 
 let plot
     ?(outfile="plot_out.png")
@@ -243,16 +278,20 @@ let comp_1d     ?(outfile = "multiplot_out.png")
   let plot_res color i (name, point, lo, hi, ys) =
     let i_05 = float i -. 0.5 in
     let dotcolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.2) color) in
-    let xs = Array.init (Array.length ys) (fun _ -> i_05 +. Random.float 1.0) in
+    let xs = Array.init (Array.length ys) (fun _ -> i_05 +. 0.1 +. Random.float 0.8) in
     A.set_color vp dotcolor;
     A.Array.xy vp xs ys;
     let bgcolor = A.Color.(add ~op:In (rgba 0. 0. 0. 0.3) color) in
     A.set_color vp bgcolor;
-    VP.rectangle vp ~x:i_05 ~w:1. ~y:lo ~h:(hi-.lo);
+    let bg = AP.make() in
+    AP.rectangle bg ~x:i_05 ~w:1. ~y:lo ~h:(hi-.lo);
+    VP.stroke vp `Data bg;
     A.set_color vp A.Color.black;
     VP.set_line_width vp 1.0;
-    VP.move_to vp ~x:i_05 ~y:point;
-    VP.rel_line_to vp ~x:1.0 ~y:0.0;
+    let path = AP.make() in
+    AP.move_to path ~x:i_05 ~y:point;
+    AP.rel_line_to path ~x:1.0 ~y:0.0;
+    VP.stroke vp `Data path;
     VP.text vp (float i) 0. name;
   in
   Array.iteri (fun i ri -> plot_res linecolors.(i) i ri) resl;
