@@ -573,18 +573,24 @@ let env = {clock_res = min_float; clock_cost = max_float}
 
 let is_positive x = x > 0.
 
+let rec get_si a i last acc = (* get strictly increasing subset of values *)
+  if i >= Array.length a then List.rev (last :: acc) |> Array.of_list
+  else if a.(i) <= last then get_si a (i+1) last acc
+  else get_si a (i+1) a.(i) (last::acc)
+
+let clock_filter a = if a = [||] then a else get_si a 1 a.(0) []
+
+let resolution a = (* the smallest non-zero distance between adjacent values *)
+  match a with [||] | [|_|] -> 1.0
+    | _ ->
+      let diffs = Array.init (Array.length a - 1) (fun i -> a.(i+1) -. a.(i)) in
+      Array.fold_left (fun acc x -> if x > 0. && x < acc then x else acc) diffs.(0) diffs
+
 (* produce an environment record appropriate for the current system by
    measuring the cost and resolution of the M.timer() function *)
 let init_environment () =
   if env.clock_res = min_float then (* do nothing if already initialized *)
-    let resolution i = (* measure the clock resolution *)
-      let times = Array.init (i+1) (fun _ -> M.timer()) in
-      let pos_diffs =
-        Array.init i (fun i -> times.(i+1) -. times.(i))
-	           |> Array.to_list |> List.filter is_positive |> Array.of_list
-      in
-      pos_diffs
-    in
+    let get_timer i = Array.init i (fun _ -> M.timer()) in
     let cost t t0 = (* compute clock cost *)
       (* put timer in closure to compensate for testing closure *)
       let f () = M.timer () in
@@ -598,11 +604,11 @@ let init_environment () =
     in
     if config.verbose then print_endline "Measuring: System Clock";
     if config.verbose then print_endline "Warming up";
-    let (_,seed,_) = run_for_time 0.1 resolution 10_000 in
+    let (_,seed,_) = run_for_time 0.1 get_timer 10_000 in
     if config.verbose then print_string "Estimating clock resolution";
-    let (_,i,clocks) = run_for_time 0.5 resolution seed in
-    (* TODO: Do we want mean here?!? Look into better detection of clock resolution *)
-    let clock_res = Outliers.analyze_mean i clocks in
+    let (_,i,clocks) = run_for_time 0.5 get_timer seed in
+(*    let clock_res = Outliers.analyze_mean i clocks in *)
+    let clock_res = resolution (clock_filter clocks) in
     if config.verbose then printf " (%a)\nEstimating cost of timer call" M.print clock_res;
     let ts = cost (min (10_000. *. clock_res) 3.) (max 0.01 (5.*.clock_res)) in
     let clock_cost = Outliers.analyze_mean (Array.length ts) ts in
