@@ -30,17 +30,20 @@ Executable benchplot
 Executable listmap
   Path:    examples/
   MainIs:  listmap.ml
+  BuildDepends: bench
   Install: false
   CompiledObject: best
 
 Executable erf
   Path:    examples/
   MainIs:  erf.ml
+  BuildDepends: bench
   Install: false
   CompiledObject: best
 
 Executable match
   Path:    examples/
   MainIs:  match.ml
+  BuildDepends: bench
   Install: false
   CompiledObject: best
