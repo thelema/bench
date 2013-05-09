@@ -1,5 +1,5 @@
 # OASIS_START
-# DO NOT EDIT (digest: 2c67316d14fa0b091e5ce34918de87ec)
+# DO NOT EDIT (digest: efa930f0c29463360e04f7138377c4d1)
 # Ignore VCS directories, you can use the same kind of rule outside 
 # OASIS_START/STOP if you want to exclude directories that contains 
 # useless stuff for the build process
@@ -22,7 +22,15 @@
 <src/*.ml{,i}>: pkg_archimedes
 <src/*.ml{,i}>: pkg_str
 # Executable listmap
+<examples/listmap.{native,byte}>: use_bench
+<examples/listmap.{native,byte}>: pkg_unix
 # Executable erf
+<examples/erf.{native,byte}>: use_bench
+<examples/erf.{native,byte}>: pkg_unix
 # Executable match
+<examples/match.{native,byte}>: use_bench
+<examples/match.{native,byte}>: pkg_unix
+<examples/*.ml{,i}>: use_bench
+<examples/*.ml{,i}>: pkg_unix
 # OASIS_STOP
 true: debug,annot
