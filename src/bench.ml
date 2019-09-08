@@ -23,6 +23,8 @@
    @author Edgar Friendly <thelema314@gmail.com>
 *)
 
+[@@@warning "-32"]
+
 open Printf
 
 let (|>) x f = f x
@@ -199,7 +201,7 @@ module Bootstrap = struct
 
   type estimate = {point: float; lower: float; upper: float; confidence: float}
   let estimate p l u c = {point=p; lower=l; upper=u; confidence=c}
-  let get {point;lower;upper} = (point,lower,upper)
+  let get {point;lower;upper; _} = (point,lower,upper)
 
   let est_scale s est = {est with point = s *. est.point; lower = s *. est.lower; upper = s *. est.upper}
 
@@ -219,8 +221,8 @@ module Bootstrap = struct
         let n = Array.length res in
         let jack = jackknife est sample in
         let jackmean = mean jack in
-        let sum_cubes = Array.fold_left (fun acc x -> let d = jackmean -. x in d *. d *. d) 0. jack in
-        let sum_squares = Array.fold_left (fun acc x -> let d = jackmean -. x in d *. d) 0. jack in
+        let sum_cubes = Array.fold_left (fun _ x -> let d = jackmean -. x in d *. d *. d) 0. jack in
+        let sum_squares = Array.fold_left (fun _ x -> let d = jackmean -. x in d *. d) 0. jack in
         let accel = sum_cubes /. (6. *. (sum_squares ** 1.5)) in
         let cumn x = int_of_float ((Normal_dist.standard_cdf x) *. (float n)) in
         let probN = Array.fold_left (fun acc x -> if x < pt then acc+1 else acc) 0 res in
@@ -246,7 +248,7 @@ module Outliers = struct
     high_severe: int; hs_limit: float;
   }
 
-  let print oc {data_count=dc; low_severe=ls; low_mild=lm; high_mild=hm; high_severe=hs} =
+  let print oc {data_count=dc; low_severe=ls; low_mild=lm; high_mild=hm; high_severe=hs; _} =
     let one_percent = dc / 100 in
     if ls>0 || lm > one_percent || hm > one_percent || hs > 0 then begin
       printf "Outliers: ";
@@ -361,7 +363,7 @@ module Outliers = struct
     let var_out_min = minby var_out 1 (minby cmax 0. (ua /. 2.)) in
     var_out_min
 
-  let print_effect oc ov =
+  let print_effect _ ov =
     if ov > 0.00001 then (
       let effect = effect_of_var ov |> effect_to_string in
       printf "variance introduced by outliers: %.5f%%\n" (ov *. 100.);
@@ -606,7 +608,7 @@ let init_environment () =
     if config.verbose then print_endline "Warming up";
     let (_,seed,_) = run_for_time 0.1 get_timer 10_000 in
     if config.verbose then print_string "Estimating clock resolution";
-    let (_,i,clocks) = run_for_time 0.5 get_timer seed in
+    let (_, _, clocks) = run_for_time 0.5 get_timer seed in
 (*    let clock_res = Outliers.analyze_mean i clocks in *)
     let clock_res = resolution (clock_filter clocks) in
     if config.verbose then printf " (%a)\nEstimating cost of timer call" M.print clock_res;
@@ -703,7 +705,7 @@ let rec gen_points ?(n=10) lo hi =
   assert (hi >= lo);
   if hi = lo then [lo]
   else if lo > 0. && hi /. lo > 100. then gen_points ~n (log lo) (log hi) |> List.map exp
-  else if hi -. lo < float (n*3) && hi -. lo > float (n/3) && floor (hi -. lo) = (hi -. lo) then List.(lo,1.) --. hi
+  else if hi -. lo < float (n*3) && hi -. lo > float (n/3) && floor (hi -. lo) = (hi -. lo) then (lo, 1.) --. hi
   else
     let step = (hi -. lo) /. float n in
     (lo, step) --. hi

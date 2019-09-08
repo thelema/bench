@@ -1,5 +1,3 @@
-open Batteries
-
 let ident x = x
 let () =
   Bench.bench_2d
