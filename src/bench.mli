@@ -49,22 +49,13 @@ end
 
 (** The results of running a test *)
 type results = {
-  (** the string description of that test *)
-  desc : string;
-
-  (** The measured times for each sample *)
-  times : float array;
-
-  (** The mean time with bootstrapped CI *)
-  mean : Bootstrap.estimate;
-
-  (** The stdev of time with bootstrapped CI *)
-  stdev : Bootstrap.estimate;
-
-  (** How much the outliers affected the variance, as a percentage.
+  desc : string; (** the string description of that test *)
+  times : float array; (** The measured times for each sample *)
+  mean : Bootstrap.estimate; (** The mean time with bootstrapped CI *)
+  stdev : Bootstrap.estimate; (** The stdev of time with bootstrapped CI *)
+  ov : float; (** How much the outliers affected the variance, as a percentage.
       0% means no effect, 100% means the outliers were responsible for all
       the variance. *)
-  ov : float;
 }
 
 (** {6 Detailed benchmarking functions} *)
@@ -105,7 +96,7 @@ val bench_funs : (string * ('a -> 'b)) list -> 'a -> results list
     how many repetitions to run.  This is slightly more accurate
     benchmark than others, as the function isn't wrapped by an
     extension function that calls it many times.  *)
-val bench_n : (string * (int -> 'a)) list -> results list
+val bench_n : (string * (int -> unit)) list -> results list
 
 (** Benchmark a function for throughput.  The function's argument is
     the block size it will work over, and the block sizes to test are

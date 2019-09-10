@@ -1,5 +1,0 @@
-(* OASIS_START *)
-(* DO NOT EDIT (digest: 8366c6c0f943c88dee2526838fdce62e) *)
-Authors of bench
-Edgar Friendly
-(* OASIS_STOP *)

@@ -1,0 +1,11 @@
+(library
+  (name bench)
+  (public_name bench)
+  (wrapped false)
+  (modules bench)
+  (libraries unix))
+
+(executable
+  (name benchplot)
+  (modules benchplot)
+  (libraries archimedes str))

@@ -1,0 +1,14 @@
+(executable
+  (name listmap)
+  (modules listmap)
+  (libraries bench batteries))
+
+(executable
+  (name erf)
+  (modules erf)
+  (libraries bench))
+
+(executable
+  (name match)
+  (modules match)
+  (libraries bench))

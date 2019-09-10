@@ -33,7 +33,7 @@ let friendly (out,value) =
   else if value then [v] else []
 
 let test f n =
-  for i = 1 to n do
+  for _ = 1 to n do
     ignore(f (true, true));
     ignore(f (true, false));
     ignore(f (false, true));
